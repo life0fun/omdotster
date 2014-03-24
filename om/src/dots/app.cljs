@@ -1,14 +1,28 @@
 (ns dots.app
-  (:require-macros [cljs.core.async.macros :refer [go go-loop alt!]]
-                   [secretary.macros :refer [defroute]])
+  
   (:require [goog.events :as events]
             [cljs.core.async :refer [put! <! chan]]
             [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
             [secretary.core :as secretary]
-            [dots.utils :refer [pluralize now guid store hidden]]
             [clojure.string :as string]
-            [dots.item :as item])
+            [clojure.set :refer [union]]
+
+            [jayq.core :refer [$ append ajax inner css $deferred when done 
+                               resolve pipe on bind attr offset] :as jq]
+            [jayq.util :refer [log]]
+
+            [dots.utils :refer [pluralize now guid store hidden]]
+            [dots.dot-chain :as dot-chain]
+            [dots.board :refer [create-board start-screen render-screen score-screen  render-score
+                        render-view render-position-updates render-remove-dots
+                        render-dot-chain-update erase-dot-chain transition-dot-chain-state
+                        dot-colors dot-color dot-index add-missing-dots
+                        flash-color-on flash-color-off
+                        dot-positions-for-focused-color]]
+            )
+  (:require-macros [cljs.core.async.macros :refer [go go-loop alt!]]
+                   [secretary.macros :refer [defroute]])
   (:import [goog History]
            [goog.history EventType]))
 
@@ -16,15 +30,11 @@
 
 (def ENTER_KEY 13)
 
-; when starting, screen is newgame, 
-; :board is a vec of vec, each dot pos is a tuple has :color and :ele of html
-(def app-state (atom {:screen :newgame :board nil :dot-chain [] :draw-chan nil}))
+(declare toggle-all)
 
 ;; =============================================================================
 ;; Routing
-
 (defroute "/" [] (swap! app-state assoc :dot-chain []))
-
 (defroute "/:filter" [filter] (swap! app-state assoc :showing (keyword filter)))
 
 (def history (History.))
@@ -35,10 +45,33 @@
 (.setEnabled history true)
 
 ;; =============================================================================
-;; Main and Footer Components
+;; app state stores :board, dot-index fn to calc dot index, :dot-chain and score.
 
-(declare toggle-all)
+; {:board [[ ; a vec of vec, each dot pos is a tuple has :color and :elem of html
+;       {:color :blue, :elem #<[object HTMLDivElement]>} 
+;       {:color :blue, :elem #<[object HTMLDivElement]>} 
+;       {:color :purple, :elem #<[object HTMLDivElement]>} 
+;    ]], 
+;   :dot-index #<function (a) { ... }>, 
+;   :dot-chain [], 
+;   :score 0, 
+;   :exclude-color nil} 
+(defn setup-game-state []
+  (let [state {:board (create-board)}]
+    (let [board-offset ((juxt :left :top) (offset ($ ".dots-game .board")))]
+      (assoc state
+             :screen :newgame 
+             :dot-index (partial dot-index board-offset)
+             :dot-chain [] 
+             :score 0
+             :exclude-color []))))
 
+; when starting, screen is newgame, 
+; :board is a vec of vec, each dot pos is a tuple has :color and :ele of html
+(def app-state (atom (setup-game-state)))
+
+
+; --------------------------------------------------------------------------
 ; create start screen with new game button
 ; pass in app state and comm chan so to send back evt to app
 (defn start-screen
@@ -50,29 +83,28 @@
                          :onClick #(put! comm [:newgame (now)])}
                     (str "New Game"))))))
 
-(defn visible? [todo filter]
-  (case filter
-    :all true
-    :active (not (:completed todo))
-    :completed (:completed todo)))
 
-
-(defn main [{:keys [dot-chain board] :as app} comm]
-  (dom/section #js {:id "main" :style (hidden (empty? todos))}
+; the main section for game board
+(defn main [{:keys [board screen dot-chain] :as app} comm]
+  (dom/section #js {:id "main" :style (hidden (= :newgame screen))}
     (dom/header #js {:id "header"}
       (dom/div #js {:className "header"} (str "Time"))
       (dom/div #js {:className "header"} (str "Score")))
     (dom/div #js {:className "board-area"}
       (dom/div #js {:className "chain-line"})
-      (dom/div #js {:className "board"})
-      (make-dots-div app comm))))
+      (dom/div #js {:className "dot-highlights"})
+      (dom/div #js {:className "board"}
+        (make-dots app comm)))))
 
-
-(defn make-dots-div
+; mapv add-dots-to-board (state :board)
+; doseq {:kesy [elem] dots}
+(defn make-dots
   [app comm]
-  (apply dom/div #js {:className (str "dot levelish " color " level-" level)}
-    (om/build-all dots/dot (:board app)
-      {:init-state {:comm comm}})))
+  (let [board (:board app)]
+    (apply dom/div #js {:className (str "dot levelish " color " level-" level)}
+      (om/build-all dots/dot board
+        {:init-state {:comm comm}})))
+
 
 ;; =============================================================================
 

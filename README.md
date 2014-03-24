@@ -1,8 +1,10 @@
 # dots with OM
 
-Dotster is a game implemented in ClojureScript using the Core.async library.
+The final frontier is here, `om` integrates `React.js` and `core.async` and acheieves data flow programming with scale.
 
-[See the blog post explaining the game](http://rigsomelight.com/2013/08/12/clojurescript-core-async-dots-game.html)
+We demonstrate the power of `om` with an implemenation of Dotster Game. 
+
+The original Dotster game is implemented in ClojureScript using the Core.async library. [See the blog post explaining the game](http://rigsomelight.com/2013/08/12/clojurescript-core-async-dots-game.html)
 
 
 ## The Improvement

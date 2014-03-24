@@ -2,13 +2,27 @@
   (:require
     [cljs.core.async :as async
       :refer [<! >! chan close! sliding-buffer put! alts! timeout]]
+    
     [jayq.core :refer [$ append ajax inner css $deferred when done 
                        resolve pipe on bind attr offset] :as jq]
     [jayq.util :refer [log]]
+    
     [crate.core :as crate]
     [clojure.string :refer [join blank? replace-first]]
-    [clojure.set :refer [union]])
+    [clojure.set :refer [union]]
+    
+    [om.dom :as dom :include-macros true]
+    )
   (:require-macros [cljs.core.async.macros :as m :refer [go go-loop alt!]]))
+
+
+;
+; where crate/html is used to generate html for the UI.
+; 1. crate-dot {:color color :elem (crate/html (... [xpos ypos] color))}
+; 2. render-screen for .dot-game-container
+; 3. render-view for (:board state), -> [:div.dots-game [:div.board ...]]
+; 4. render dot chain update for .chain-line an d.dot-highlights
+;
 
 
 ;<div class="board">
@@ -83,15 +97,6 @@
       [:div.dot-highlights]
       [:div.board]]])
 
-; board is vec of vec.
-; (def world (apply vector
-;   (map (fn [_] (apply vector (map (fn [_] (ref (struct cell 0 0))) (range dim))))
-;        (range dim))))
-(defn create-board [] 
-  (vec 
-    (map-indexed  ; create-dot at row i, within each row, different colors.
-      (fn [i x] (vec (map-indexed (partial create-dot i) (take board-size (rand-colors))))) 
-      (range board-size))))
 
 (defn render-view [state]
   (let [view-dom (crate/html (board state))]
@@ -143,13 +148,34 @@
 ; <div class="dot levelish yellow level-5" style="top:-112px; left: 23px;"></div>
 ; <div class="dot levelish blue level-4" style="top:-112px; left: 68px;"></div>
 ; <div class="dot levelish green level-0 level-0-from0" style="top:-112px; left: 248px;"></div>
+; (defn starting-dot [[top-pos _] color]
+;   (let [[start-top left] (pos->corner-coord [top-pos offscreen-dot-position])
+;         style (str "top:" start-top "px; left: " left "px;")]
+;     [:div {:class (str "dot levelish " (name color)) :style style}]))
 (defn starting-dot [[top-pos _] color]
   (let [[start-top left] (pos->corner-coord [top-pos offscreen-dot-position])
         style (str "top:" start-top "px; left: " left "px;")]
-    [:div {:class (str "dot levelish " (name color)) :style style}]))
+    (dom/div #js {:className (str "dot levelish " (name color))
+                  :style style})))
 
+; (defn create-dot [xpos ypos color]
+;   {:color color :elem (crate/html (starting-dot [xpos ypos] color))})
 (defn create-dot [xpos ypos color]
-  {:color color :elem (crate/html (starting-dot [xpos ypos] color))})
+  {:color color :elem (starting-dot [xpos ypos] color)})
+
+; board is vec of vec.
+; (def world (apply vector
+;   (map (fn [_] (apply vector (map (fn [_] (ref (struct cell 0 0))) (range dim))))
+;        (range dim))))
+; <div class="dot levelish yellow level-5" style="top:-112px; left: 23px;"></div>
+; <div class="dot levelish blue level-4" style="top:-112px; left: 68px;"></div>
+(defn create-board 
+  [] 
+  (vec 
+    (map-indexed  ; create-dot at row i, within each row, different colors.
+      (fn [i x] (vec (map-indexed (partial create-dot i) (take board-size (rand-colors))))) 
+      (range board-size))))
+
 
 ; remove a dot by ($ele).remove, with some css animation.
 (defn remove-dot 

@@ -10,6 +10,33 @@
                    [secretary.macros :refer [defroute]])
   )
 
+
+; ----------------------------------------------------------------------------
+; go-loop [state] block read chan, recur conj state data.
+; go-loop [msg (<! chan)] (if (pred msg) (>! msg out-chan)) (recur (<! chan))
+; read chan in body of go-loop, recur with updated conj new state 
+; or put predicated msg into out chan and return out chan.
+; break out when expected msg is recvd.
+; ret output chan, or waited for msg value.
+; 
+; go-loop [ msg (<! chan)]
+;   when (= :drawstart msg)
+;     (>! out-chan msg)
+;     go-loop [msg (<! chan)]
+;       (>! out-chan msg)
+;       if (= :draw msg)
+;         (recur (<! chan))  
+;   (recur (<! chan))
+;
+; game-loop on each draw gester. alts! draw-chan and timeout-chan; 
+; get dots to remove from draw-chan ends and dots in :dot-chain in state map.
+;   go-loop [state init-state]
+;     [value ch] (alts! [(get-dots-to-remove draw-chan state) timeout-chan])
+;     (recur (-> state (render-remove-dots dot-chain) (assoc :score x)))
+;
+; ----------------------------------------------------------------------------
+
+
 (def ESCAPE_KEY 27)
 (def ENTER_KEY 13)
 
