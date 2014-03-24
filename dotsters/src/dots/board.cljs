@@ -57,10 +57,6 @@
       [:div.control-area
         [:a.start-new-game {:href "#"} "new game"]]]])
 
-(defn render-screen [screen]
-  (let [view-dom (crate/html screen)]
-    (inner ($ ".dots-game-container") view-dom)))
-
 (defn score-screen [score]
   [:div.dots-game
     [:div.notice-square
@@ -68,9 +64,6 @@
                          (colorize-word (str score)))]
       [:div.control-area
         [:a.start-new-game {:href "#"} "new game"]]]])
-
-(defn render-score [{:keys [score]}]
-  (inner ($ ".score-val") score))
 
 
 (defn board [{:keys [board] :as state}]
@@ -93,6 +86,14 @@
       (fn [i x] (vec (map-indexed (partial create-dot i) (take board-size (rand-colors))))) 
       (range board-size))))
 
+(defn render-screen [screen]
+  (let [view-dom (crate/html screen)]
+    (inner ($ ".dots-game-container") view-dom)))
+
+(defn render-score [{:keys [score]}]
+  (inner ($ ".score-val") score))
+
+; render view renders all the dot in the board with add dots to board.
 (defn render-view [state]
   (let [view-dom (crate/html (board state))]
       (inner ($ ".dots-game-container") view-dom)

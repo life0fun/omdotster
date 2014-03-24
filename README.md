@@ -1,6 +1,6 @@
-# dots
+# dots with OM
 
-This is a fork from bhauman's dotster. Dotster is a game implemented in ClojureScript using the Core.async library.
+Dotster is a game implemented in ClojureScript using the Core.async library.
 
 [See the blog post explaining the game](http://rigsomelight.com/2013/08/12/clojurescript-core-async-dots-game.html)
 
@@ -14,6 +14,6 @@ The om directory contains the re-implements using `om`. `om` is the final fronti
 
 ## License
 
-Copyright © 2013
+Copyright © 2014
 
 Distributed under the Eclipse Public License, the same as Clojure.

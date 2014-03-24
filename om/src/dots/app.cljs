@@ -1,5 +1,5 @@
 (ns dots.app
-  (:require-macros [cljs.core.async.macros :refer [go]]
+  (:require-macros [cljs.core.async.macros :refer [go go-loop alt!]]
                    [secretary.macros :refer [defroute]])
   (:require [goog.events :as events]
             [cljs.core.async :refer [put! <! chan]]
@@ -16,8 +16,9 @@
 
 (def ENTER_KEY 13)
 
-; when starting, screen is newgame
-(def app-state (atom {:screen :newgame :dot-chain [] :draw-chan nil}))
+; when starting, screen is newgame, 
+; :board is a vec of vec, each dot pos is a tuple has :color and :ele of html
+(def app-state (atom {:screen :newgame :board nil :dot-chain [] :draw-chan nil}))
 
 ;; =============================================================================
 ;; Routing
