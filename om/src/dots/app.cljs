@@ -1,5 +1,4 @@
 (ns dots.app
-  
   (:require [goog.events :as events]
             [cljs.core.async :refer [put! <! chan]]
             [om.core :as om :include-macros true]
@@ -13,11 +12,11 @@
             [jayq.util :refer [log]]
 
             [dots.utils :refer [pluralize now guid store hidden]]
-            [dots.dot-chain :as dot-chain]
-            [dots.board :refer [create-board start-screen render-screen score-screen  render-score
+            [dots.dot-chan :as dot-chan]
+            [dots.board :refer [create-board render-screen score-screen  render-score
                         render-view render-position-updates render-remove-dots
                         render-dot-chain-update erase-dot-chain transition-dot-chain-state
-                        dot-colors dot-color dot-index add-missing-dots
+                        get-dot-elem dot-colors dot-color dot-index add-missing-dots
                         flash-color-on flash-color-off
                         dot-positions-for-focused-color]]
             )
@@ -25,6 +24,14 @@
                    [secretary.macros :refer [defroute]])
   (:import [goog History]
            [goog.history EventType]))
+
+;
+; when creating React component, if it only contains primitive elements,
+; just use dom/div, dom/input, dom/a, etc; if nested, then build, build-all
+; if nested React components, then need to om/build the nested components.
+; (apply dom/ul #js {:id "x:} om/build-all dot dots {})
+;
+
 
 (enable-console-print!)
 
@@ -70,18 +77,24 @@
 ; :board is a vec of vec, each dot pos is a tuple has :color and :ele of html
 (def app-state (atom (setup-game-state)))
 
-
 ; --------------------------------------------------------------------------
 ; create start screen with new game button
 ; pass in app state and comm chan so to send back evt to app
-(defn start-screen
-  [app comm]
+(defn start-screen [app comm]
   (dom/div #js {:className "dots-game"}
     (dom/div #js {:className "notice-square"}
+      (dom/div #js {:className "marq"}
+        (dom/span #js {:className "purple"} (str "P"))
+        (dom/span #js {:className "purple"} (str "C"))
+        (dom/span #js {:className "yellow"} (str "O"))
+        (dom/span #js {:className "green"} (str "R"))
+        (dom/span #js {:className "red"} (str "E"))
+        (dom/span nil)
+        (dom/span #js {:className "red"} (str "2")))
       (dom/div #js {:className "control-area"}
-        (dom/button #js {:id "new-game" 
-                         :onClick #(put! comm [:newgame (now)])}
-                    (str "New Game"))))))
+        (dom/a #js {:className "start-new-game" :href "#"
+                    :onClick #(put! comm [:newgame (now)])} 
+                   "new game")))))
 
 
 ; the main section for game board
@@ -94,25 +107,18 @@
       (dom/div #js {:className "chain-line"})
       (dom/div #js {:className "dot-highlights"})
       (dom/div #js {:className "board"}
-        (make-dots app comm)))))
+        (make-dots-board app comm)))))
 
 ; mapv add-dots-to-board (state :board)
 ; doseq {:kesy [elem] dots}
-(defn make-dots
+; get vec of vec dots from state board, extract :elem, ret a vec of divs
+(defn make-dots-board
   [app comm]
-  (let [board (:board app)]
-    (apply dom/div #js {:className (str "dot levelish " color " level-" level)}
-      (om/build-all dots/dot board
-        {:init-state {:comm comm}})))
+  (let [board (:board app)]  ; 
+    (mapv get-dot-elem board)))
 
 
 ;; =============================================================================
-
-(defn toggle-all [e app]
-  (let [checked (.. e -target -checked)]
-    (om/transact! app :todos
-      (fn [todos] (vec (map #(assoc % :completed checked) todos))))))
-
 (defn handle-new-todo-keydown [e app owner]
   (when (== (.-which e) ENTER_KEY)
     (let [new-field (om/get-node owner "newField")]
@@ -150,8 +156,12 @@
     :cancel  (cancel-action app)
     nil))
 
+
+; =============================================================================
+; thread dynamic var record render start
 (def render-start nil)
 
+; dots-app fn create React component. comm msg tuple in [type value]
 (defn dots-app [{:keys [dots screen] :as app} owner]
   (reify
     om/IWillMount
@@ -162,19 +172,18 @@
               (let [[type value] (<! comm)]
                 (handle-event type app value))))))
     om/IWillUpdate
-    (will-update [_ _ _] (set! render-start (now)))
+    (will-update [_ _ _] (set! render-start (now)))  ; update render-start
     om/IDidUpdate
     (did-update [_ _ _]
-      (store "todos" todos)
       (let [ms (- (.valueOf (now)) (.valueOf render-start))]
-        (set! (.-innerHTML (js/document.getElementById "message")) (str ms "ms"))))
+        (log "did-update " ms)))
     om/IRenderState
-    (render-state [_ {:keys [comm]}]
+    (render-state [_ {:keys [comm]}]  ; render on every change
       (if (= screen :newgame)
         (start-screen app comm)
-        (main app comm))))
+        (main app comm)))))
 
-
+; start render loop for dots-app component, inside dots-game-container div
 (om/root dots-app app-state
   {:target (.getElementByClass js/document "dots-game-container")})
 
@@ -187,6 +196,7 @@
       #js ["Part of"
            (dom/a #js {:href "http://dots.com"} "dots")]))
   (.getElementById js/document "info"))
+
 
 ;; =============================================================================
 ;; Benchmark Stuff

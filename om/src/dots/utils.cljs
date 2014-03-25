@@ -1,4 +1,4 @@
-(ns dotster.utils
+(ns dots.utils
   (:require [cljs.reader :as reader])
   (:import [goog.ui IdGenerator]))
 

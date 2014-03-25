@@ -17,7 +17,7 @@
 
 
 ;
-; where crate/html is used to generate html for the UI.
+; crate/html is used to generate html for the UI, and attach to div
 ; 1. crate-dot {:color color :elem (crate/html (... [xpos ypos] color))}
 ; 2. render-screen for .dot-game-container
 ; 3. render-view for (:board state), -> [:div.dots-game [:div.board ...]]
@@ -51,30 +51,18 @@
 (def number-colors (count dot-colors))
 
 
-; ----------- game screen and board -----------------
-(defn colorize-word [word]
-  (map (fn [x c] [:span {:class (name c)} x]) word (rand-colors)))
-
 (defn rand-colors [exclude-color]
   ;(log "rand-colors " (prn-str exclude-color))
   (let [colors (if exclude-color 
                    (vec (remove (partial = exclude-color) dot-colors))
                    dot-colors)
         number-colors (if exclude-color (dec number-colors) number-colors)]
-    ;(log "rand-colors " (prn-str colors))
     (map #(get colors (rand-int %)) (repeat number-colors))))
 
-(defn start-screen []
-  [:div.dots-game
-    [:div.notice-square
-      [:div.marq (colorize-word "SHAPES")]
-      [:div.control-area
-        [:a.start-new-game {:href "#"} "new game"]]]])
+(defn colorize-word [word]
+  (map (fn [x c] [:span {:class (name c)} x]) word (rand-colors)))
 
-(defn render-screen [screen]
-  (let [view-dom (crate/html screen)]
-    (inner ($ ".dots-game-container") view-dom)))
-
+; ----------- game screen and board -----------------
 (defn score-screen [score]
   [:div.dots-game
     [:div.notice-square
@@ -82,10 +70,6 @@
                          (colorize-word (str score)))]
       [:div.control-area
         [:a.start-new-game {:href "#"} "new game"]]]])
-
-(defn render-score [{:keys [score]}]
-  (inner ($ ".score-val") score))
-
 
 (defn board [{:keys [board] :as state}]
   [:div.dots-game
@@ -97,6 +81,22 @@
       [:div.dot-highlights]
       [:div.board]]])
 
+; set div's inner html to crate/html [:div.dots-game]
+(defn render-screen [screen]
+  (let [view-dom (crate/html screen)]
+    (inner ($ ".dots-game-container") view-dom)))
+
+(defn render-score [{:keys [score]}]
+  (inner ($ ".score-val") score))
+
+(defn erase-dot-chain []
+  (inner ($ ".dots-game .chain-line") "")
+  (inner ($ ".dots-game .dot-highlights") ""))
+
+; append dots html to board div, dot's elem already is html in create-dot
+(defn add-dots-to-board [dots]
+  (doseq [{:keys [elem]} dots]
+    (append ($ ".dots-game .board") elem)))
 
 (defn render-view [state]
   (let [view-dom (crate/html (board state))]
@@ -104,7 +104,7 @@
       (mapv add-dots-to-board (state :board))))
 
 
-;called as ((partial dot-index board-offset) point)
+; fn inside state map :dot-index = ((partial dot-index board-offset) point)
 ; map x,y co-ordinate into board matrix i,j
 (defn dot-index 
   [offset {:keys [x y]}]  ; offset is board offset
@@ -140,11 +140,6 @@
   (= expected-top (top-pos-from-dot-elem ($ (dot :elem)))))
 
 
-; ------------------ css style string -------------------------------
-(defn translate-top [top]
-  (str "translate3d(0," (+ offscreen-offset top) "px,0) "))
-
-
 ; <div class="dot levelish yellow level-5" style="top:-112px; left: 23px;"></div>
 ; <div class="dot levelish blue level-4" style="top:-112px; left: 68px;"></div>
 ; <div class="dot levelish green level-0 level-0-from0" style="top:-112px; left: 248px;"></div>
@@ -163,23 +158,51 @@
 (defn create-dot [xpos ypos color]
   {:color color :elem (starting-dot [xpos ypos] color)})
 
+(defn get-dot-elem [dots]
+  (mapv :elem dots))
+
 ; board is vec of vec.
 ; (def world (apply vector
 ;   (map (fn [_] (apply vector (map (fn [_] (ref (struct cell 0 0))) (range dim))))
 ;        (range dim))))
 ; <div class="dot levelish yellow level-5" style="top:-112px; left: 23px;"></div>
 ; <div class="dot levelish blue level-4" style="top:-112px; left: 68px;"></div>
-(defn create-board 
-  [] 
-  (vec 
+(defn create-board [] 
+  (vec
     (map-indexed  ; create-dot at row i, within each row, different colors.
-      (fn [i x] (vec (map-indexed (partial create-dot i) (take board-size (rand-colors))))) 
+      (fn [i x] 
+        (vec 
+          (map-indexed (partial create-dot i) (take board-size (rand-colors)))))
       (range board-size))))
+
+; create-dot and append to board div, concat new dot to state[col] list.
+(defn add-missing-dots-helper 
+  [col-idx col exclude-color]
+  (if (= (count col) board-size)
+    col
+    (let [new-dots (map create-dot
+                        (repeat col-idx)
+                        (repeat offscreen-dot-position)
+                        (take (- board-size (count col)) (rand-colors exclude-color)))]
+      (add-dots-to-board new-dots)
+      (vec (concat col new-dots)))))
+
+(defn add-missing-dots 
+  [{:keys [board exclude-color] :as state}]
+  (assoc state :board
+         (vec (map-indexed
+                #(add-missing-dots-helper %1 %2 exclude-color)
+                board))
+         :exclude-color nil))
+
+
+; ------------------ css style and transition ------------------------------
+(defn translate-top [top]
+  (str "translate3d(0," (+ offscreen-offset top) "px,0) "))
 
 
 ; remove a dot by ($ele).remove, with some css animation.
-(defn remove-dot 
-  [{:keys [elem] :as dot}]
+(defn remove-dot [{:keys [elem] :as dot}]
   (go
     (let [$elem ($ elem)  ; select the dot
           top (-> (top-pos-from-dot-elem $elem) reverse-board-position pos->coord)
@@ -195,6 +218,25 @@
       (<! (timeout 150))
       (.remove ($ elem)))))
 
+; remove dots by row
+(defn render-remove-dots-row-helper 
+  [dot-chain-set col]
+  (let [dots-to-remove (keep-indexed #(if (dot-chain-set %1) %2) col)
+        next_col     (keep-indexed #(if (not (dot-chain-set %1)) %2) col)]
+    (doseq [dot dots-to-remove]
+      (remove-dot dot))
+    (vec next_col)))
+
+
+; just update state board with new board
+(defn render-remove-dots [state dot-chain]
+  (let [dot-chain-groups  (group-by first dot-chain)
+        next_board (map-indexed #(render-remove-dots-row-helper
+                                    (set (map last (get dot-chain-groups %1))) 
+                                    %2)
+                                (state :board))]
+    (assoc state :board (vec next_board))))
+
 ; update dot by adding css class. 
 (defn update-dot [dot pos]
   (if dot
@@ -206,18 +248,24 @@
                               (reverse-board-position (last pos))
                               previous-level))))))
 
-; doseq append dots to the board div
-(defn add-dots-to-board [dots]
-  (doseq [{:keys [elem]} dots]
-    (append ($ ".dots-game .board") elem)))
+(defn render-position-updates-helper 
+  [col-idx col]
+  (go-loop [[dot & xd] col pos 0]
+    (when (not (nil? dot))
+      (when (not (at-correct-postion? dot [col-idx pos]))
+        (<! (timeout 80))
+        (update-dot dot [col-idx pos]))
+      (recur xd (inc pos)))))
+
+; after position updates, render state board
+(defn render-position-updates 
+  [{:keys [board]}]
+  (doall
+    (map-indexed
+      #(render-position-updates-helper %1 %2)
+      board)))
 
 
-(defn dot-follows? [state prev-dot cur-dot]
-  (and (not= prev-dot cur-dot)
-       (or (nil? prev-dot)
-           (and
-            (= (dot-color state prev-dot) (dot-color state cur-dot))
-            (= 1 (apply + (mapv (comp abs -) cur-dot prev-dot)))))))
 
 ; double line in background in style when dots chained
 (defn chain-element-templ 
@@ -234,14 +282,12 @@
                    "left: " (+ (min left1 left2) off-left) "px;")]
     [:div {:style style :class (str "line " (name (or color :blue)) (if (< width height) " vert" " horiz" ))}]))
 
-
 ; add dot-highlight style
 (defn dot-highlight-templ 
   [pos color]
   (let [[top left] (pos->corner-coord pos)
         style (str "top:" top "px; left: " left "px;")]
     [:div {:style style :class (str "dot-highlight " (name color))}]))
-
 
 (defn render-dot-chain-update 
   [last-state state]
@@ -265,10 +311,12 @@
                 (crate/html (dot-highlight-templ (last dot-chain) color)))))))
 
 
-(defn erase-dot-chain []
-  (inner ($ ".dots-game .chain-line") "")
-  (inner ($ ".dots-game .dot-highlights") ""))
-
+(defn dot-follows? [state prev-dot cur-dot]
+  (and (not= prev-dot cur-dot)
+       (or (nil? prev-dot)
+           (and
+            (= (dot-color state prev-dot) (dot-color state cur-dot))
+            (= 1 (apply + (mapv (comp abs -) cur-dot prev-dot)))))))
 
 ; conj dot-pos to state :dot-chain 
 (defn transition-dot-chain-state 
@@ -294,6 +342,7 @@
       (vec (map :pos (get-all-color-dots state color)))))
 
 
+
 ; flash class effect on board-area
 (defn flash-class [color] (str (name color) "-trans"))
 
@@ -304,59 +353,3 @@
   (.removeClass ($ ".dots-game .board-area") (flash-class color)))
 
 
-; remove dots by row
-(defn render-remove-dots-row-helper 
-  [dot-chain-set col]
-  (let [dots-to-remove (keep-indexed #(if (dot-chain-set %1) %2) col)
-        next_col     (keep-indexed #(if (not (dot-chain-set %1)) %2) col)]
-    (doseq [dot dots-to-remove]
-      (remove-dot dot))
-    (vec next_col)))
-
-
-; just update state board with new board
-(defn render-remove-dots [state dot-chain]
-  (let [dot-chain-groups  (group-by first dot-chain)
-        next_board (map-indexed #(render-remove-dots-row-helper
-                                    (set (map last (get dot-chain-groups %1))) 
-                                    %2)
-                                (state :board))]
-    (assoc state :board (vec next_board))))
-
-
-(defn add-missing-dots-helper 
-  [col-idx col exclude-color]
-  (if (= (count col) board-size)
-    col
-    (let [new-dots (map create-dot
-                        (repeat col-idx)
-                        (repeat offscreen-dot-position)
-                        (take (- board-size (count col)) (rand-colors exclude-color)))]
-      (add-dots-to-board new-dots)
-      (vec (concat col new-dots)))))
-
-(defn add-missing-dots 
-  [{:keys [board exclude-color] :as state}]
-  (assoc state :board
-         (vec (map-indexed
-                #(add-missing-dots-helper %1 %2 exclude-color)
-                board))
-         :exclude-color nil))
-
-
-(defn render-position-updates-helper 
-  [col-idx col]
-  (go-loop [[dot & xd] col pos 0]
-    (when (not (nil? dot))
-      (when (not (at-correct-postion? dot [col-idx pos]))
-        (<! (timeout 80))
-        (update-dot dot [col-idx pos]))
-      (recur xd (inc pos)))))
-
-; after position updates, render state board
-(defn render-position-updates 
-  [{:keys [board]}]
-  (doall
-    (map-indexed
-      #(render-position-updates-helper %1 %2)
-      board)))

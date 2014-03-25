@@ -5,7 +5,17 @@
             [clojure.string :refer [join blank? replace-first] :as string]
             [clojure.set :refer [union]]
             [om.core :as om :include-macros true]
-            [om.dom :as dom :include-macros true])
+            [om.dom :as dom :include-macros true]
+            
+            [jayq.core :refer [$ append ajax inner css $deferred when done 
+                               resolve pipe on bind attr offset] :as jq]
+            [jayq.util :refer [log]]
+            [dots.board :refer [create-board render-screen score-screen render-score
+                        render-view render-position-updates render-remove-dots
+                        render-dot-chain-update erase-dot-chain transition-dot-chain-state
+                        dot-colors dot-color dot-index add-missing-dots
+                        flash-color-on flash-color-off
+                        dot-positions-for-focused-color]])
   (:require-macros [cljs.core.async.macros :refer [go go-loop alt!]]
                    [secretary.macros :refer [defroute]])
   )
@@ -71,47 +81,21 @@
 (defn change [e todo owner]
   (om/set-state! owner :edit-text (.. e -target -value)))
 
+
+; each dot is a div, we do not have complicated evt hdl for dot div.
+; <div class="dot levelish red level-5" style="top:-112px; left: 23px;">
 (defn dot-item [dot owner]
   (reify
     om/IInitState
     (init-state [_]
-      {:edit-text (:title todo)})
-    om/IDidUpdate
-    (did-update [_ _ _]
-      (when (and (:editing todo)
-                 (om/get-state owner :needs-focus))
-        (let [node (om/get-node owner "editField")
-              len  (.. node -value -length)]
-          (.focus node)
-          (.setSelectionRange node len len))
-        (om/set-state! owner :needs-focus nil)))
+      {:style (:style dot)})
     om/IRenderState
     (render-state [_ {:keys [comm] :as state}]
-      (let [class (cond-> ""
-                    (:completed todo) (str "completed")
-                    (:editing todo)   (str "editing"))]
-        (dom/li #js {:className class :style (hidden (:hidden todo))}
-          (dom/div #js {:className "view"}
-            (dom/input
-              #js {:className "toggle" :type "checkbox"
-                   :checked (and (:completed todo) "checked")
-                   :onChange (fn [_] (om/transact! todo :completed #(not %)))})
-            (dom/label
-              #js {:onDoubleClick #(edit % todo owner comm)}
-              (:title todo))
-            (dom/button
-              #js {:className "destroy"
-                   :onClick (fn [_] (put! comm [:destroy @todo]))}))
-          (dom/input
-            #js {:ref "editField" :className "edit"
-                 :value (om/get-state owner :edit-text)
-                 :onBlur #(submit % todo owner comm)
-                 :onChange #(change % todo owner)
-                 :onKeyDown #(key-down % todo owner comm)}))))))
+      (dom/div #js {:className "dot"}))))
 
 
 ; ------------------- chan related ----------------------------
-; multi-wait on a list of chans, unitl predicated event appear
+; multi-wait on a list of chans, block unitl predicated event appear
 (defn multi-wait-until [pred chans]
   (go-loop []
     (let [[value ch] (alts! chans)]
@@ -167,7 +151,7 @@
 ; and ret draw-ochan that contains [ :draw-start :draw :draw ... :draw-end ]
 ; div's mouse click or move evts handler put msg into draw-ichan.
 ; go-loop read chan. when msg is :start, inner go-loop to relay :draw msg to draw-ochan. 
-(defn draw-chan [selector]
+(defn draw-chan [selector]  ; called with selector = "body", click and mousemove evt in body div
   (let [draw-ichan (chan) 
         draw-ochan (chan)]
     (drawstart-chan draw-ichan selector)
@@ -215,4 +199,75 @@
                     (assoc state :dot-chain (transition-dot-chain-state state dot-pos))
                     state)))))))
 
+
+; game timer block until count-down
+(defn game-timer [seconds]
+  (go-loop [timeout-chan (timeout 1000)  ; timer time out every second 
+            count-down seconds]
+    (inner ($ ".time-val") count-down) ; update UI
+    (<! timeout-chan)  ; sequence programming, block 1 second
+    (if (zero? count-down)
+      count-down
+      (recur (timeout 1000) (dec count-down)))))
+
+;; =============================================================================
+;      
+; {:board [[ ; a vec of vec, each dot pos is a tuple has :color and :elem of html
+;       {:color :blue, :elem #<[object HTMLDivElement]>}.
+;       {:color :blue, :elem #<[object HTMLDivElement]>}.
+;       {:color :purple, :elem #<[object HTMLDivElement]>}.
+;    ]],.
+;   :dot-index #<function (a) { ... }>,.
+;   :dot-chain [],.
+;   :score 0,.
+;   :exclude-color nil}.
+(defn setup-game-state []                                                                                                                                                         
+  (let [init-state {:board (create-board)}]
+    (render-view init-state)
+    (let [board-offset ((juxt :left :top) (offset ($ ".dots-game .board")))]
+      (assoc init-state
+             :dot-index (partial dot-index board-offset)
+             :dot-chain []
+             :score 0))))
+
+; game loop on each draw gesture. when gesture done, draw dots in draw-chan stored in
+; state map :dot-chain. remove those dots, and recur by add missing dots.
+(defn game-loop [init-state draw-chan]
+  (let [game-over-timeout (game-timer 600)]
+    ; go-loop on state, state changes on each draw gesture.
+    (go-loop [state init-state]
+      (render-score state)
+      (render-position-updates state)
+      (let [state (add-missing-dots state)]
+        (<! (timeout 300))
+        (render-position-updates state)
+        ; wait for the reading of draw-chan ret drawing dots in state map :dot-chain
+        (let [[state ch] (alts! [(get-dots-to-remove draw-chan state) game-over-timeout])]
+          (if (= ch game-over-timeout)
+            state ;; leave game loop
+            (recur  ; dots in draw-chan get maps to vec pos index and store in :dot-chain in state map
+              (let [{:keys [dot-chain exclude-color]} state]  
+                (log "game loop recur " dot-chain)  ; dot-chain = [[0 4] [1 4]]
+                (if (< 1 (count dot-chain))
+                  (-> state
+                      (render-remove-dots dot-chain)
+                      (assoc :score (+ (state :score) (count (set dot-chain)))
+                             :exclude-color exclude-color))
+                  state)
+                ))))))))
+
+; collect draw msg from body into draw-chan, goloop remove all dots in draw-chan
+(defn app-loop []
+  (let [draw-chan (draw-chan "body")
+        start-chan (click-chan ".dots-game .start-new-game" :start-new-game)]
+    (go
+      ;(render-screen (start-screen))
+      (<! (multi-wait-until #(= [:start-new-game] %) [start-chan draw-chan]))
+      (loop []
+        (let [{:keys [score]} (<! (game-loop (setup-game-state) draw-chan))]
+          (render-screen (score-screen score))
+          (<! (multi-wait-until #(= [:start-new-game] %) [start-chan draw-chan]))       
+          (recur))))))
+
+;; (app-loop)
 
