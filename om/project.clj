@@ -8,7 +8,7 @@
                  [org.clojure/clojurescript "0.0-2173"]
                  [org.clojure/core.async "0.1.267.0-0d7780-alpha"]
                  [secretary "0.4.0"]
-                 [om "0.5.0"]
+                 [om "0.5.3"]
                  [crate "0.2.4"]
                  [jayq "2.4.0"]
                  [com.cemerick/piggieback "0.0.5"]]
@@ -32,4 +32,5 @@
                 :pretty-print false
                 :output-wrapper false
                 :preamble ["react/react.min.js"]
-                :externs ["react/externs/react.js"]}}]})
+                :externs ["react/externs/react.js" 
+                          "resources/public/js/externs/jquery-1.9.js"]}}]})

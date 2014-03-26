@@ -179,6 +179,7 @@
         (log "did-update " ms)))
     om/IRenderState
     (render-state [_ {:keys [comm]}]  ; render on every change
+      (log "dots-app started " screen)
       (if (= screen :newgame)
         (start-screen app comm)
         (main app comm)))))
