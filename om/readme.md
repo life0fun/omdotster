@@ -29,6 +29,8 @@ To prevent munging, You can either create an externs file manually, or if you're
 
 For more information, read 
 
+  http://hugoduncan.org/post/clojurescript-libs-with-js-dependencies/
+
   https://github.com/emezeske/lein-cljsbuild/blob/1.0.2/sample.project.clj
 
   http://lukevanderhart.com/2011/09/30/using-javascript-and-clojurescript.html
