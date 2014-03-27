@@ -27,6 +27,10 @@ To prevent munging, You can either create an externs file manually, or if you're
      :output-to "helloworld.js"
     }
 
+To find externs for popular js libs, go to closure-compiler repository at 
+
+  https://code.google.com/p/closure-compiler/source/browse/#git%2Fcontrib%2Fexterns
+
 For more information, read 
 
   http://hugoduncan.org/post/clojurescript-libs-with-js-dependencies/
@@ -37,14 +41,21 @@ For more information, read
 
   https://github.com/magomimmo/modern-cljs/tree/master/doc
 
-## Running
+## Build
 
 Specify Clojure, ClojureScript, and core.async and om dependencies in project.clj. You may need to tweak the project.clj so that all versions compatible.
 
-Install Om by cloning and running lein install. Then clone this repo and 
+The `project.clj` contains build for todo and dots, both in `:optimizations :advanced`.
 
-run `lein cljsbuild once release` to build. 
-Open index.html in your favorite browser.
+Important Note here is that, during cljsbuild, it will put all intermediate result into `target//cljsbuild-compiler-X` directory. You need to clean up the directory when switching build target, otherwise you will get weird error in the final app.js. set 
+
+    :output-dir "target/my-compiler-output-"
+
+
+run `lein cljsbuild once todo` to build todo and view with index.html.
+run `lein cljsbuild once dots` to build dots and view with dots.html.
+
+The order of variables in cljs matters. Need to use declare before use. Lesson learned from swap! on undefined app-state.
 
 ## License
 

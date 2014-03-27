@@ -7,11 +7,11 @@
             [clojure.string :as string]
             [clojure.set :refer [union]]
 
-            [jayq.core :refer [$ append ajax inner css $deferred when done 
-                               resolve pipe on bind attr offset] :as jq]
-            [jayq.util :refer [log]]
+            ; [jayq.core :refer [$ append ajax inner css $deferred when done 
+            ;                    resolve pipe on bind attr offset] :as jq]
+            ; [jayq.util :refer [log]]
 
-            [dots.utils :refer [pluralize now guid store hidden]]
+            ; [dots.utils :refer [pluralize now guid store hidden]]
             ;[dots.dot-chan :as dot-chan]
             ; [dots.board :refer [create-board render-screen score-screen  render-score
             ;             render-view render-position-updates render-remove-dots
@@ -95,7 +95,7 @@
   (dom/div #js {:className "dots-game"}
     (dom/div #js {:className "notice-square"}
       (dom/div #js {:className "marq"}
-        (dom/span #js {:className "purple"} (str "S"))
+        (dom/span #js {:className "purple"} (str "P"))
         (dom/span #js {:className "purple"} (str "C"))
         (dom/span #js {:className "yellow"} (str "O"))
         (dom/span #js {:className "green"} (str "R"))
@@ -131,43 +131,42 @@
 
 
 ;; =============================================================================
-; (defn handle-new-todo-keydown [e app owner]
-;   (when (== (.-which e) ENTER_KEY)
-;     (let [new-field (om/get-node owner "newField")]
-;       (when-not (string/blank? (.. new-field -value trim))
-;         (let [new-todo {:id (guid)
-;                         :title (.-value new-field)
-;                         :completed false}]
-;           (om/transact! app :todos
-;             #(conj % new-todo)
-;             [:create new-todo]))
-;         (set! (.-value new-field) "")))
-;     false))
+(defn handle-new-todo-keydown [e app owner]
+  (when (== (.-which e) ENTER_KEY)
+    (let [new-field (om/get-node owner "newField")]
+      (when-not (string/blank? (.. new-field -value trim))
+        (let [new-todo {:id (guid)
+                        :title (.-value new-field)
+                        :completed false}]
+          (om/transact! app :todos
+            #(conj % new-todo)
+            [:create new-todo]))
+        (set! (.-value new-field) "")))
+    false))
 
-; (defn destroy-todo [app {:keys [id]}]
-;   (om/transact! app :todos
-;     (fn [todos] (into [] (remove #(= (:id %) id) todos)))
-;     [:delete id]))
+(defn destroy-todo [app {:keys [id]}]
+  (om/transact! app :todos
+    (fn [todos] (into [] (remove #(= (:id %) id) todos)))
+    [:delete id]))
 
-; (defn edit-todo [app {:keys [id]}] (om/update! app :editing id))
+(defn edit-todo [app {:keys [id]}] (om/update! app :editing id))
 
-; (defn save-todos [app] (om/update! app :editing nil))
+(defn save-todos [app] (om/update! app :editing nil))
 
-; (defn cancel-action [app] (om/update! app :editing nil))
+(defn cancel-action [app] (om/update! app :editing nil))
 
-; (defn clear-completed [app]
-;   (om/transact! app :todos
-;     (fn [todos] (into [] (remove :completed todos)))))
+(defn clear-completed [app]
+  (om/transact! app :todos
+    (fn [todos] (into [] (remove :completed todos)))))
 
 (defn handle-event [type app val]
-  nil)
-  ; (case type
-  ;   :destroy (destroy-todo app val)
-  ;   :edit    (edit-todo app val)
-  ;   :save    (save-todos app)
-  ;   :clear   (clear-completed app)
-  ;   :cancel  (cancel-action app)
-  ;   nil))
+  (case type
+    :destroy (destroy-todo app val)
+    :edit    (edit-todo app val)
+    :save    (save-todos app)
+    :clear   (clear-completed app)
+    :cancel  (cancel-action app)
+    nil))
 
 
 ; =============================================================================
@@ -200,7 +199,7 @@
 
 ; start render loop for dots-app component, inside dots-game-container div
 (om/root dots-app app-state
-  {:target (.getElementById js/document "dots-game-container")})
+  {:target (.getElementByClass js/document "dots-game-container")})
 
 (dom/render
   (dom/div nil

@@ -7,7 +7,7 @@
                        resolve pipe on bind attr offset] :as jq]
     [jayq.util :refer [log]]
     
-    [crate.core :as crate]
+    ;[crate.core :as crate]
     [clojure.string :refer [join blank? replace-first]]
     [clojure.set :refer [union]]
     
@@ -83,8 +83,9 @@
 
 ; set div's inner html to crate/html [:div.dots-game]
 (defn render-screen [screen]
-  (let [view-dom (crate/html screen)]
-    (inner ($ ".dots-game-container") view-dom)))
+  ; (let [view-dom (crate/html screen)]
+  ;   (inner ($ ".dots-game-container") view-dom)))
+  screen)
 
 (defn render-score [{:keys [score]}]
   (inner ($ ".score-val") score))
@@ -99,9 +100,10 @@
     (append ($ ".dots-game .board") elem)))
 
 (defn render-view [state]
-  (let [view-dom (crate/html (board state))]
-      (inner ($ ".dots-game-container") view-dom)
-      (mapv add-dots-to-board (state :board))))
+  ; (let [view-dom (crate/html (board state))]
+  ;     (inner ($ ".dots-game-container") view-dom)
+  ;     (mapv add-dots-to-board (state :board))))
+  state)
 
 
 ; fn inside state map :dot-index = ((partial dot-index board-offset) point)
@@ -300,15 +302,16 @@
             length-diff            (- chain-length last-chain-length)]
         (if (< 1 chain-length)
           (if (pos? length-diff)
-            (append ($ ".dots-game .chain-line")
-                    (crate/html (chain-element-templ
-                                 (last (butlast dot-chain))
-                                 (last dot-chain)
-                                 color)))
+            ; (append ($ ".dots-game .chain-line")
+            ;         (crate/html (chain-element-templ
+            ;                      (last (butlast dot-chain))
+            ;                      (last dot-chain)
+            ;                      color)))
             (.remove (.last ($ ".dots-game .chain-line .line"))))
           (inner ($ ".dots-game .chain-line") ""))
-        (append ($ ".dots-game .dot-highlights")
-                (crate/html (dot-highlight-templ (last dot-chain) color)))))))
+        ; (append ($ ".dots-game .dot-highlights")
+        ;         (crate/html (dot-highlight-templ (last dot-chain) color))))
+      ))))
 
 
 (defn dot-follows? [state prev-dot cur-dot]
