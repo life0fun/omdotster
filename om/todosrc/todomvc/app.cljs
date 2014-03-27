@@ -1,4 +1,4 @@
-(ns dots.app
+(ns todomvc.app
   (:require-macros [cljs.core.async.macros :refer [go]]
                    [secretary.macros :refer [defroute]])
   (:require [goog.events :as events]
@@ -6,10 +6,9 @@
             [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
             [secretary.core :as secretary]
-            ;[todomvc.utils :refer [pluralize now guid store hidden]]
+            [todomvc.utils :refer [pluralize now guid store hidden]]
             [clojure.string :as string]
-            ;[todomvc.item :as item]
-            )
+            [todomvc.item :as item])
   (:import [goog History]
            [goog.history EventType]))
 

@@ -26,15 +26,15 @@
                 :optimizations :none
                 :source-map true}}
              {:id "release"
-              :source-paths ["src/dots"]
+              :source-paths ["todosrc"]
               :compiler {
-                :output-to "dots.js"
+                :output-to "app.js"
                 :optimizations :advanced
                 :elide-asserts true
                 :pretty-print false
                 :output-wrapper false
                 :preamble ["react/react.min.js"]
                 :externs ["react/externs/react.js" 
-                          "resources/public/js/externs/jquery-1.9.js"
+                          ;"resources/public/js/externs/jquery-1.9.js"
                           ]
               }}]})
