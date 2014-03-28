@@ -13,13 +13,12 @@
 
             [dots.utils :refer [pluralize now guid store hidden]]
             ;[dots.dot-chan :as dot-chan]
-            ; [dots.board :refer [create-board render-screen score-screen  render-score
-            ;             render-view render-position-updates render-remove-dots
-            ;             render-dot-chain-update erase-dot-chain transition-dot-chain-state
-            ;             get-dot-elem dot-colors dot-color dot-index add-missing-dots
-            ;             flash-color-on flash-color-off
-            ;             dot-positions-for-focused-color]]
-            ;[dots.board :refer [create-board]]
+            [dots.board :refer [create-board render-screen score-screen  render-score
+                        render-view render-position-updates render-remove-dots
+                        render-dot-chain-update erase-dot-chain transition-dot-chain-state
+                        get-dot-elem dot-colors dot-color dot-index add-missing-dots
+                        flash-color-on flash-color-off
+                        dot-positions-for-focused-color]]
             )
   (:require-macros [cljs.core.async.macros :refer [go go-loop alt!]]
                    [secretary.macros :refer [defroute]])
@@ -32,6 +31,12 @@
 ; if nested React components, then need to om/build the nested components.
 ; (apply dom/ul #js {:id "x:} om/build-all dot dots {})
 ;
+
+; every change of app-state causes virtual DOM re-rendering !
+; om/transact! ([cursor korks f tag])
+; cursor is cursor/path in to app-state, 
+; korks is an optional key or sequence of keys to access in the cursor
+; tag is optional :keyword or [:keyword values]
 
 
 (enable-console-print!)
@@ -64,7 +69,7 @@
 ;              :exclude-color []))))
 
 (defn setup-game-state []
-  (let [state {:board [[]]}]
+  (let [state {:board (create-board)}]
     (assoc state
            :screen :newgame
            :dot-chain [] 
@@ -104,7 +109,8 @@
         (dom/span #js {:className "red"} (str "2")))
       (dom/div #js {:className "control-area"}
         (dom/a #js {:className "start-new-game" :href "#"
-                    :onClick #(put! comm [:newgame (now)])} 
+                    :onClick (fn [e] (log "start game clicked") 
+                                     (put! comm [:newgame (now)]))} 
                    "new game")))))
 
 
@@ -118,56 +124,60 @@
       (dom/div #js {:className "chain-line"})
       (dom/div #js {:className "dot-highlights"})
       (dom/div #js {:className "board"}
-        (make-dots-board app comm)))))
+        (dom/div #js {:id "dot1" :className "dot levelish red level-0" :style "top:-112px; left: 158px;"} 
+          (dom/a #js {} "xxx"))
+        (dom/div #js {:id "dot2" :className "dot levelish yellow level-0" :style "top:-112px; left: 158px;"} 
+          (dom/a #js {} "yyy"))
+        ;(make-dots-board app comm)
+        ))))
 
 ; mapv add-dots-to-board (state :board)
 ; doseq {:kesy [elem] dots}
 ; get vec of vec dots from state board, extract :elem, ret a vec of divs
+; (dom/div #js {:className (str "dot levelish") :style style})
 (defn make-dots-board
   [app comm]
-  (let [board (:board app)]  ; 
-    ;(mapv get-dot-elem board)
-    ))
-
+  (let [board (:board app)]
+    ;(apply dom/div #js {:className (:classname %) :style (:style %)}
+    ; (apply dom/div #js {:className "dot levelish red" :style "top:-112px; left: 158px;"}
+    ;        (first board))
+  ))
 
 ;; =============================================================================
-; (defn handle-new-todo-keydown [e app owner]
-;   (when (== (.-which e) ENTER_KEY)
-;     (let [new-field (om/get-node owner "newField")]
-;       (when-not (string/blank? (.. new-field -value trim))
-;         (let [new-todo {:id (guid)
-;                         :title (.-value new-field)
-;                         :completed false}]
-;           (om/transact! app :todos
-;             #(conj % new-todo)
-;             [:create new-todo]))
-;         (set! (.-value new-field) "")))
-;     false))
+(defn handle-keydown [e app owner]
+  (when (== (.-which e) ENTER_KEY)
+    (let [new-field (om/get-node owner "newField")]
+      (when-not (string/blank? (.. new-field -value trim))
+        (let [new-todo {:id (guid)
+                        :title (.-value new-field)
+                        :completed false}]
+          (om/transact! app :todos
+            #(conj % new-todo)
+            [:create new-todo]))
+        (set! (.-value new-field) "")))
+    false))
 
-; (defn destroy-todo [app {:keys [id]}]
-;   (om/transact! app :todos
-;     (fn [todos] (into [] (remove #(= (:id %) id) todos)))
-;     [:delete id]))
+(defn start-new-game [app start-time]
+  (om/transact! app :screen
+    (fn [screen] (log "handle event set game start! ") :start)
+    [:start start-time]))
 
-; (defn edit-todo [app {:keys [id]}] (om/update! app :editing id))
+(defn edit-todo [app {:keys [id]}] (om/update! app :editing id))
 
-; (defn save-todos [app] (om/update! app :editing nil))
+(defn save-todos [app] (om/update! app :editing nil))
 
-; (defn cancel-action [app] (om/update! app :editing nil))
+(defn cancel-action [app] (om/update! app :editing nil))
 
-; (defn clear-completed [app]
-;   (om/transact! app :todos
-;     (fn [todos] (into [] (remove :completed todos)))))
+(defn clear-completed [app]
+  (om/transact! app :todos
+    (fn [todos] (into [] (remove :completed todos)))))
 
 (defn handle-event [type app val]
-  nil)
-  ; (case type
-  ;   :destroy (destroy-todo app val)
-  ;   :edit    (edit-todo app val)
-  ;   :save    (save-todos app)
-  ;   :clear   (clear-completed app)
-  ;   :cancel  (cancel-action app)
-  ;   nil))
+  (log "handle-event type " type " val " val)
+  (case type
+    :newgame (start-new-game app val)
+    :cancel  (cancel-action app)
+    nil))
 
 
 ; =============================================================================
@@ -189,11 +199,11 @@
     om/IDidUpdate
     (did-update [_ _ _]
       (let [ms (- (.valueOf (now)) (.valueOf render-start))]
-        ;(log "did-update " ms)
+        (log "did-update " ms)
         ))
     om/IRenderState
     (render-state [_ {:keys [comm]}]  ; render on every change
-      ;(log "dots-app started " screen)
+      (log "render-state :screen " screen)
       (if (= screen :newgame)
         (start-screen app comm)
         (main app comm)))))
@@ -209,5 +219,5 @@
       (dom/a #js {:href "http://github.com/dotster"}))
     (dom/p nil
       #js ["Part of"
-           (dom/a #js {:href "http://dots.com"} "dots")]))
+           (dom/a #js {:href "http://dots.com"} "dots board")]))
   (.getElementById js/document "info"))
