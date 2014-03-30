@@ -16,6 +16,10 @@
   (:require-macros [cljs.core.async.macros :as m :refer [go go-loop alt!]]))
 
 
+; when creating dom/div with style, style takes a map with keys, not string
+; (dom/div #js {:className "dot" :style #js {:top "-112px" :left "158px"}}
+; if you provide string, you got minification exception.
+
 ;
 ; crate/html is used to generate html for the UI, and attach to div
 ; 1. crate-dot {:color color :elem (crate/html (... [xpos ypos] color))}
@@ -151,22 +155,30 @@
 ;     [:div {:class (str "dot levelish " (name color)) :style style}]))
 (defn starting-dot [[top-pos _] color]
   (let [[start-top left] (pos->corner-coord [top-pos offscreen-dot-position])
-        style (str "top:" start-top "px; left: " left "px;")]
+        ;style (str "top:" start-top "px; left: " left "px;")
+        style {:top (str start-top "px;") :left (str left "px;")}]
     style))
 
 ; (defn create-dot [xpos ypos color]
 ;   {:color color :elem (crate/html (starting-dot [xpos ypos] color))})
+
+; ret a dot prop map where style is a nested map of {:top -2px :left 1px}
 (defn create-dot [xpos ypos color]
   (let [style (starting-dot [xpos ypos] color)
-        classname (str "dot levelish " (name color))
+        classname (str "dot levelish " (name color) " level-" ypos)
         dot {:color color :style style :classname classname}]
-    (log "create-dot " dot)
+    (log "create-dot x: " xpos " y: " ypos " " style " " color)
     dot))
 
-(defn get-dot-elem [dots]
-  ;(map :elem dots)
-  dots   ; one row of dots
-  )
+
+; given a row of dots prop map, ret a list of dom/div
+; JavaScript literal must use map or vector notation, so one more indirection
+(defn get-dot-div [dots]
+  (mapv (fn [dot]  ; dot prop map {:classname :color, :style {:top :left} }
+          (let [style (:style dot)]
+            (dom/div #js {:className (:classname dot)
+                          :style #js {:top (:top style) :left (:left style)}})))
+        dots))
 
 ; board is vec of vec.
 ; (def world (apply vector
@@ -177,10 +189,11 @@
 (defn create-board [] 
   (vec
     (map-indexed  ; create-dot at row i, within each row, different colors.
-      (fn [i x] 
-        (vec 
-          (map-indexed (partial create-dot i) (take board-size (rand-colors)))))
-      (range board-size))))
+      (fn [row x] 
+        (vec    ; inner index is ypos, and map over a list of color.
+          (map-indexed (partial create-dot row) (take board-size (rand-colors)))))
+      (range board-size)  ; outer index is row, board-size.
+      )))
 
 ; ; create-dot and append to board div, concat new dot to state[col] list.
 ; (defn add-missing-dots-helper 

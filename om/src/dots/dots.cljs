@@ -16,7 +16,7 @@
             [dots.board :refer [create-board render-screen score-screen  render-score
                         render-view render-position-updates render-remove-dots
                         render-dot-chain-update erase-dot-chain transition-dot-chain-state
-                        get-dot-elem dot-colors dot-color dot-index add-missing-dots
+                        get-dot-div dot-colors dot-color dot-index add-missing-dots
                         flash-color-on flash-color-off
                         dot-positions-for-focused-color]]
             )
@@ -116,19 +116,18 @@
 
 ; the main section for game board
 (defn main [{:keys [board screen dot-chain] :as app} comm]
-  (dom/section #js {:id "main" :style (hidden (= :newgame screen))}
+  (dom/div #js {:id "main" :className "dots-game"}
     (dom/header #js {:id "header"}
       (dom/div #js {:className "header"} (str "Time"))
       (dom/div #js {:className "header"} (str "Score")))
     (dom/div #js {:className "board-area"}
       (dom/div #js {:className "chain-line"})
       (dom/div #js {:className "dot-highlights"})
-      (dom/div #js {:className "board"}
-        (dom/div #js {:id "dot1" :className "dot levelish red level-0" :style "top:-112px; left: 158px;"} 
-          (dom/a #js {} "xxx"))
-        (dom/div #js {:id "dot2" :className "dot levelish yellow level-0" :style "top:-112px; left: 158px;"} 
-          (dom/a #js {} "yyy"))
-        ;(make-dots-board app comm)
+      ; apply unwrap a list of dom/div reted from make-dots-board
+      ; as individual arg to dom/div.  (dom/div (dom/div) (dom/div) ...)
+      (apply dom/div #js {:className "board"}
+        ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
+        (make-dots-board app comm)
         ))))
 
 ; mapv add-dots-to-board (state :board)
@@ -137,11 +136,9 @@
 ; (dom/div #js {:className (str "dot levelish") :style style})
 (defn make-dots-board
   [app comm]
-  (let [board (:board app)]
-    ;(apply dom/div #js {:className (:classname %) :style (:style %)}
-    ; (apply dom/div #js {:className "dot levelish red" :style "top:-112px; left: 158px;"}
-    ;        (first board))
-  ))
+  (let [board (:board app)
+        dots (mapcat get-dot-div board)]
+    dots))
 
 ;; =============================================================================
 (defn handle-keydown [e app owner]
