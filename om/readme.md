@@ -9,9 +9,10 @@ The original Dotster game is implemented in ClojureScript using the Core.async l
 
 ## Cljsbuild tutorial
 
-In advanced optimizations, all symbols and function names in the program renamed/munges. This includes function names that reference dependency libs. so if you call $.ajax() in the code, ajax() will be munges to something else that will throw you a js error.
+In advanced optimizations, all symbols and function names got renamed/munges. This includes function names that reference functions in dependency libs. so if you call $.ajax() in the code, ajax() will be munges to something else that will throw you a js error if jquery is not compiled by Goog closure compiler together.
 
-solution: 
+Solution: 
+
 1. include dependency libs within your compilation set, so all names got munges together. However, most libs are not Google Closure compatible.
 
   :libs ["libs/foobar.js"] ; js must include goog.provide('foobar');
@@ -27,9 +28,10 @@ To prevent munging, You can either create an externs file manually, or if you're
      :output-to "helloworld.js"
     }
 
-To find externs for popular js libs, go to closure-compiler repository at 
+To find externs files for popular js libs, go to closure-compiler repository. For example, you can download jquery externs from there.
 
   https://code.google.com/p/closure-compiler/source/browse/#git%2Fcontrib%2Fexterns
+
 
 For more information, read 
 

@@ -12,7 +12,7 @@
             [jayq.util :refer [log]]
 
             [dots.utils :refer [pluralize now guid store hidden]]
-            ;[dots.dot-chan :as dot-chan]
+            [dots.dot-chan :as dot-chan]
             [dots.board :refer [create-board render-screen score-screen  render-score
                         render-view render-position-updates render-remove-dots
                         render-dot-chain-update erase-dot-chain transition-dot-chain-state
@@ -69,9 +69,11 @@
 ;              :exclude-color []))))
 
 (defn setup-game-state []
-  (let [state {:board (create-board)}]
+  (let [state {:board (create-board)}
+        drawchan (dot-chan/draw-chan "body")]
     (assoc state
            :screen :newgame
+           :draw-chan drawchan
            :dot-chain [] 
            :score 0
            :exclude-color [])))
@@ -123,9 +125,10 @@
     (dom/div #js {:className "board-area"}
       (dom/div #js {:className "chain-line"})
       (dom/div #js {:className "dot-highlights"})
-      ; apply unwrap a list of dom/div reted from make-dots-board
-      ; as individual arg to dom/div.  (dom/div (dom/div) (dom/div) ...)
-      (apply dom/div #js {:className "board"}
+      ; apply unwrap list of dom/div reted from make-dots-board, make them
+      ; as individual args to dom/div.  (dom/div (dom/div) (dom/div) ...)
+      (apply dom/div #js {:className "board"
+                          :onClick (fn [e] (log "board click"))}
         ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
         (make-dots-board app comm)
         ))))
@@ -154,9 +157,11 @@
         (set! (.-value new-field) "")))
     false))
 
-(defn start-new-game [app start-time]
+; om transact set app state :screen, will trigger re-render.
+(defn set-state-screen [app start-time]
   (om/transact! app :screen
-    (fn [screen] (log "handle event set game start! ") :start)
+    (fn [screen] 
+      (log "handle event set state screen to :start ") :start)
     [:start start-time]))
 
 (defn edit-todo [app {:keys [id]}] (om/update! app :editing id))
@@ -172,7 +177,7 @@
 (defn handle-event [type app val]
   (log "handle-event type " type " val " val)
   (case type
-    :newgame (start-new-game app val)
+    :newgame (set-state-screen app val)
     :cancel  (cancel-action app)
     nil))
 
@@ -188,9 +193,15 @@
     (will-mount [_]
       (let [comm (chan)]
         (om/set-state! owner :comm comm)
-        (go (while true
-              (let [[type value] (<! comm)]
-                (handle-event type app value))))))
+        ;(dot-chan/game-loop app (:draw-chan app))
+        ; (go (while true
+        ;       (let [[type value] (<! comm)]
+        ;         (handle-event type app value))))))
+        (go-loop []
+          (let [[type value] (<! comm)]  ; block on click start
+            (if (== :newgame type)
+              (set-state-screen app val)
+              (game-loop app (:draw-chan app)))))))
     om/IWillUpdate
     (will-update [_ _ _] (set! render-start (now)))  ; update render-start
     om/IDidUpdate

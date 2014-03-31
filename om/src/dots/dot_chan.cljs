@@ -233,11 +233,12 @@
 ; game loop on each draw gesture. when gesture done, draw dots in draw-chan stored in
 ; state map :dot-chain. remove those dots, and recur by add missing dots.
 (defn game-loop [init-state draw-chan]
+  (log "game-loop on evnt")
   (let [game-over-timeout (game-timer 600)]
     ; go-loop on state, state changes on each draw gesture.
     (go-loop [state init-state]
-      (render-score state)
-      (render-position-updates state)
+      ;(render-score state)
+      ;(render-position-updates state)
       (let [state (add-missing-dots state)]
         (<! (timeout 300))
         (render-position-updates state)
