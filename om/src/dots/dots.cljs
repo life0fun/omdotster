@@ -95,53 +95,7 @@
 (.setEnabled history true)
 
 
-; --------------------------------------------------------------------------
-; create start screen with new game button
-; pass in app state and comm chan so to send back evt to app
-(defn start-screen [app comm]
-  (dom/div #js {:className "dots-game"}
-    (dom/div #js {:className "notice-square"}
-      (dom/div #js {:className "marq"}
-        (dom/span #js {:className "purple"} (str "S"))
-        (dom/span #js {:className "purple"} (str "C"))
-        (dom/span #js {:className "yellow"} (str "O"))
-        (dom/span #js {:className "green"} (str "R"))
-        (dom/span #js {:className "red"} (str "E"))
-        (dom/span nil)
-        (dom/span #js {:className "red"} (str "2")))
-      (dom/div #js {:className "control-area"}
-        (dom/a #js {:className "start-new-game" :href "#"
-                    :onClick (fn [e] (log "start game clicked") 
-                                     (put! comm [:newgame (now)]))} 
-                   "new game")))))
 
-
-; the main section for game board
-(defn main [{:keys [board screen dot-chain] :as app} comm]
-  (dom/div #js {:id "main" :className "dots-game"}
-    (dom/header #js {:id "header"}
-      (dom/div #js {:className "header"} (str "Time"))
-      (dom/div #js {:className "header"} (str "Score")))
-    (dom/div #js {:className "board-area"}
-      (dom/div #js {:className "chain-line"})
-      (dom/div #js {:className "dot-highlights"})
-      ; apply unwrap list of dom/div reted from make-dots-board, make them
-      ; as individual args to dom/div.  (dom/div (dom/div) (dom/div) ...)
-      (apply dom/div #js {:className "board"
-                          :onClick (fn [e] (log "board click"))}
-        ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
-        (make-dots-board app comm)
-        ))))
-
-; mapv add-dots-to-board (state :board)
-; doseq {:kesy [elem] dots}
-; get vec of vec dots from state board, extract :elem, ret a vec of divs
-; (dom/div #js {:className (str "dot levelish") :style style})
-(defn make-dots-board
-  [app comm]
-  (let [board (:board app)
-        dots (mapcat get-dot-div board)]
-    dots))
 
 ;; =============================================================================
 (defn handle-keydown [e app owner]
@@ -186,38 +140,113 @@
 ; thread dynamic var record render start
 (def render-start nil)
 
-; dots-app fn create React component. comm msg tuple in [type value]
-(defn dots-app [{:keys [dots screen] :as app} owner]
+; --------------------------------------------------------------------------
+; create start screen with new game button
+; pass in app state and comm chan so to send back evt to app
+(defn login-screen [app comm]
+  (dom/div #js {:className "dots-game"}
+    (dom/div #js {:className "notice-square"}
+      (dom/div #js {:className "marq"}
+        (dom/span #js {:className "purple"} (str "S"))
+        (dom/span #js {:className "purple"} (str "C"))
+        (dom/span #js {:className "yellow"} (str "O"))
+        (dom/span #js {:className "green"} (str "R"))
+        (dom/span #js {:className "red"} (str "E"))
+        (dom/span nil)
+        (dom/span #js {:className "red"} (str "2")))
+      (dom/div #js {:className "control-area"}
+        (dom/a #js {:className "start-new-game" :href "#"
+                    :onClick (fn [e] (log "start game clicked") 
+                                     (put! comm [:newgame (now)]))} 
+                   "new game")))))
+
+
+; create React component for login-component and render update.
+; comm msg tuple in [type value]
+(defn login-component [{:keys [dots screen] :as app} owner]
   (reify
-    om/IWillMount
+    om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
-      (let [comm (chan)]
+      (let [comm (chan)]  ; create chan upon mount 
         (om/set-state! owner :comm comm)
-        ;(dot-chan/game-loop app (:draw-chan app))
-        ; (go (while true
-        ;       (let [[type value] (<! comm)]
-        ;         (handle-event type app value))))))
         (go-loop []
           (let [[type value] (<! comm)]  ; block on click start
-            (if (== :newgame type)
-              (set-state-screen app val)
-              (game-loop app (:draw-chan app)))))))
+            (when (== :newgame type)     ; when click sends :newgame
+              (set-state-screen app val))))))
+
     om/IWillUpdate
-    (will-update [_ _ _] (set! render-start (now)))  ; update render-start
+    (will-update [_ _ _] 
+      (set! render-start (now)))  ; update render-start
+    
     om/IDidUpdate
     (did-update [_ _ _]
       (let [ms (- (.valueOf (now)) (.valueOf render-start))]
-        (log "did-update " ms)
-        ))
+        (log "did-update " ms)))
+    
     om/IRenderState
     (render-state [_ {:keys [comm]}]  ; render on every change
       (log "render-state :screen " screen)
       (if (= screen :newgame)
-        (start-screen app comm)
-        (main app comm)))))
+        (login-screen app comm)
+        ; board-component take over dots-game-container and start rendering
+        (om/root board-component app-state
+          {:target (.getElementById js/document "dots-game-container")})))
+  ))
 
-; start render loop for dots-app component, inside dots-game-container div
-(om/root dots-app app-state
+; --------------------------------------------------------------------------
+; mapv add-dots-to-board (state :board)
+; doseq {:kesy [elem] dots}
+; get vec of vec dots from state board, extract :elem, ret a vec of divs
+; (dom/div #js {:className (str "dot levelish") :style style})
+(defn make-dots-board
+  [app comm]
+  (let [board (:board app)
+        dots (mapcat get-dot-div board)]
+    dots))
+
+; the main section for game board
+(defn board-screen [{:keys [board screen dot-chain] :as app} comm]
+  (dom/div #js {:id "main" :className "dots-game"}
+    (dom/header #js {:id "header"}
+      (dom/div #js {:className "header"} (str "Time"))
+      (dom/div #js {:className "header"} (str "Score")))
+    (dom/div #js {:className "board-area"}
+      (dom/div #js {:className "chain-line"})
+      (dom/div #js {:className "dot-highlights"})
+      ; apply unwrap list of dom/div reted from make-dots-board, make them
+      ; as individual args to dom/div.  (dom/div (dom/div) (dom/div) ...)
+      (apply dom/div #js {:className "board"
+                          :onClick (fn [e] (log "board click"))}
+        ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
+        (make-dots-board app comm)
+        ))))
+
+; create React component for board-component and render update.
+(defn board-component 
+  [{:keys [dots screen] :as app} owner]
+  (reify
+    om/IWillMount   ; called once upon component mount to DOM.
+    (will-mount [_]
+      (log "board-screen mounted..."))
+
+    om/IWillUpdate
+    (will-update [_ _ _] 
+      (set! render-start (now)))  ; update render-start
+    
+    om/IDidUpdate
+    (did-update [_ _ _]
+      (let [ms (- (.valueOf (now)) (.valueOf render-start))]
+        (log "did-update " ms)))
+    
+    om/IRenderState
+    (render-state [_ {:keys [comm]}]  ; render on every change
+      (log "board screen rendering " screen)
+      (board-screen app comm)
+      )
+  ))
+
+; at very beginning, render login screen component inside dots-game-container
+(om/root login-component app-state
   {:target (.getElementById js/document "dots-game-container")})
 
 (dom/render

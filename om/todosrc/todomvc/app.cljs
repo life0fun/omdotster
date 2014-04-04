@@ -128,7 +128,7 @@
 
 (defn todo-app [{:keys [todos] :as app} owner]
   (reify
-    om/IWillMount
+    om/IWillMount  ; called once upon component mount to DOM.
     (will-mount [_]
       (let [comm (chan)]
         (om/set-state! owner :comm comm)
