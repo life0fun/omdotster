@@ -70,7 +70,8 @@
 
 (defn setup-game-state []
   (let [state {:board (create-board)}
-        drawchan (dot-chan/draw-chan "body")]
+        drawchan (dot-chan/draw-chan "body")  ; draw chan collect draw evt on body
+       ]
     (assoc state
            :screen :newgame
            :draw-chan drawchan
@@ -95,8 +96,6 @@
 (.setEnabled history true)
 
 
-
-
 ;; =============================================================================
 (defn handle-keydown [e app owner]
   (when (== (.-which e) ENTER_KEY)
@@ -111,7 +110,7 @@
         (set! (.-value new-field) "")))
     false))
 
-; om transact set app state :screen, will trigger re-render.
+; om transact set app state to:screen upon login chan evted, will trigger re-render.
 (defn set-state-screen [app start-time]
   (om/transact! app :screen
     (fn [screen] 
@@ -142,8 +141,8 @@
 
 ; --------------------------------------------------------------------------
 ; create start screen with new game button
-; pass in app state and comm chan so to send back evt to app
-(defn login-screen [app comm]
+; pass in app state and login-chan so to send back evt to app
+(defn login-screen [app login-chan]
   (dom/div #js {:className "dots-game"}
     (dom/div #js {:className "notice-square"}
       (dom/div #js {:className "marq"}
@@ -157,21 +156,22 @@
       (dom/div #js {:className "control-area"}
         (dom/a #js {:className "start-new-game" :href "#"
                     :onClick (fn [e] (log "start game clicked") 
-                                     (put! comm [:newgame (now)]))} 
+                                     (put! login-chan [:newgame (now)]))} 
                    "new game")))))
 
 
 ; create React component for login-component and render update.
-; comm msg tuple in [type value]
+; login chan msg tuple [type value]
 (defn login-component [{:keys [dots screen] :as app} owner]
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
-      (let [comm (chan)]  ; create chan upon mount 
-        (om/set-state! owner :comm comm)
+      (let [login-chan (chan)]  ; create chan upon mount 
+        (om/set-state! owner :login-chan login-chan)
+        ; once mounted, park a thread to process login chan evt
         (go-loop []
-          (let [[type value] (<! comm)]  ; block on click start
-            (when (== :newgame type)     ; when click sends :newgame
+          (let [[type value] (<! login-chan)]  ; block on click start
+            (when (== :newgame type)     ; upon newgame evt, set screen state, re-render.
               (set-state-screen app val))))))
 
     om/IWillUpdate
@@ -184,13 +184,14 @@
         (log "did-update " ms)))
     
     om/IRenderState
-    (render-state [_ {:keys [comm]}]  ; render on every change
+    (render-state [_ {:keys [login-chan]}]  ; render on every change
       (log "render-state :screen " screen)
       (if (= screen :newgame)
-        (login-screen app comm)
+        (login-screen app login-chan)  ; pass login-chan to coll evt from login screen
         ; board-component take over dots-game-container and start rendering
         (om/root board-component app-state
-          {:target (.getElementById js/document "dots-game-container")})))
+          {:target (.getElementById js/document "dots-game-container")}))
+        )
   ))
 
 ; --------------------------------------------------------------------------
@@ -199,13 +200,13 @@
 ; get vec of vec dots from state board, extract :elem, ret a vec of divs
 ; (dom/div #js {:className (str "dot levelish") :style style})
 (defn make-dots-board
-  [app comm]
+  [app]
   (let [board (:board app)
         dots (mapcat get-dot-div board)]
     dots))
 
-; the main section for game board
-(defn board-screen [{:keys [board screen dot-chain] :as app} comm]
+; board screen with each dot a div 
+(defn board-screen [{:keys [board screen dot-chain] :as app}]
   (dom/div #js {:id "main" :className "dots-game"}
     (dom/header #js {:id "header"}
       (dom/div #js {:className "header"} (str "Time"))
@@ -218,7 +219,7 @@
       (apply dom/div #js {:className "board"
                           :onClick (fn [e] (log "board click"))}
         ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
-        (make-dots-board app comm)
+        (make-dots-board app)
         ))))
 
 ; create React component for board-component and render update.
@@ -227,7 +228,9 @@
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
-      (log "board-screen mounted..."))
+      (log "board-screen mounted...")
+      ;(game-loop app (:draw-chan app))  ; once mounted, park thread to render loop
+      )
 
     om/IWillUpdate
     (will-update [_ _ _] 
