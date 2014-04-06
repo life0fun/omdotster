@@ -1,3 +1,4 @@
+*.swp
 dotsters/resources/public/js/compiled/
 om/target/
 om/out/

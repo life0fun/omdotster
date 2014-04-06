@@ -38,36 +38,18 @@
 ; korks is an optional key or sequence of keys to access in the cursor
 ; tag is optional :keyword or [:keyword values]
 
+; reify IRender must ret an Om component, a React component, or a some value that 
+; React knows how to render. otherwise you get Minified exception.
 
 (enable-console-print!)
 
 (def ENTER_KEY 13)
 
 (declare toggle-all)
+(declare board-component)
 
 ; =============================================================================
-; order matters. def app-state on top, or declare before refer !
-;; app state stores :board, dot-index fn to calc dot index, :dot-chain and score.
-
-; {:board [[ ; a vec of vec, each dot pos is a tuple has :color and :elem of html
-;       {:color :blue, :elem #<[object HTMLDivElement]>} 
-;       {:color :blue, :elem #<[object HTMLDivElement]>} 
-;       {:color :purple, :elem #<[object HTMLDivElement]>} 
-;    ]], 
-;   :dot-index #<function (a) { ... }>, 
-;   :dot-chain [], 
-;   :score 0, 
-;   :exclude-color nil} 
-; (defn setup-game-state []
-;   (let [state {:board [[]]}]
-;     (let [board-offset ((juxt :left :top) (offset ($ ".dots-game .board")))]
-;       (assoc state
-;              :screen :newgame 
-;              :dot-index (partial dot-index board-offset)
-;              :dot-chain [] 
-;              :score 0
-;              :exclude-color []))))
-
+; game state creates draw-chan to collect draw evt from body
 (defn setup-game-state []
   (let [state {:board (create-board)}
         drawchan (dot-chan/draw-chan "body")  ; draw chan collect draw evt on body
@@ -79,8 +61,7 @@
            :score 0
            :exclude-color [])))
 
-; when starting, screen is newgame, 
-; :board is a vec of vec, each dot pos is a tuple has :color and :ele of html
+; Ref protect global app-state tree map; component fn gets a cursor to this tree map.
 (def app-state (atom (setup-game-state)))
 
 ;; =============================================================================
@@ -155,13 +136,13 @@
         (dom/span #js {:className "red"} (str "2")))
       (dom/div #js {:className "control-area"}
         (dom/a #js {:className "start-new-game" :href "#"
-                    :onClick (fn [e] (log "start game clicked") 
+                    :onClick (fn [e] (log "start game clicked, put :newgame evt") 
                                      (put! login-chan [:newgame (now)]))} 
                    "new game")))))
 
 
 ; create React component for login-component and render update.
-; login chan msg tuple [type value]
+; login chan msg tuple = [type value], first arg is app-state cursor.
 (defn login-component [{:keys [dots screen] :as app} owner]
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
@@ -169,10 +150,17 @@
       (let [login-chan (chan)]  ; create chan upon mount 
         (om/set-state! owner :login-chan login-chan)
         ; once mounted, park a thread to process login chan evt
-        (go-loop []
+        (log "login-component mounted, wait for start button")
+        (go []
           (let [[type value] (<! login-chan)]  ; block on click start
-            (when (== :newgame type)     ; upon newgame evt, set screen state, re-render.
-              (set-state-screen app val))))))
+            (log "login chan newgame event " type " " value)
+            (when (== :newgame type)     ; upon newgame evt, set screen state, show board screen
+              (set-state-screen app val)
+              (log "login-component newgame started, start board render loop")
+              (om/root board-component app-state 
+                       {:target (.getElementById js/document "dots-game-container")})
+              )))
+        ))
 
     om/IWillUpdate
     (will-update [_ _ _] 
@@ -185,13 +173,11 @@
     
     om/IRenderState
     (render-state [_ {:keys [login-chan]}]  ; render on every change
-      (log "render-state :screen " screen)
+      (log "login component render :screen " screen)
       (if (= screen :newgame)
         (login-screen app login-chan)  ; pass login-chan to coll evt from login screen
-        ; board-component take over dots-game-container and start rendering
-        (om/root board-component app-state
-          {:target (.getElementById js/document "dots-game-container")}))
-        )
+        (dom/div nil nil)
+        ))
   ))
 
 ; --------------------------------------------------------------------------
@@ -209,8 +195,8 @@
 (defn board-screen [{:keys [board screen dot-chain] :as app}]
   (dom/div #js {:id "main" :className "dots-game"}
     (dom/header #js {:id "header"}
-      (dom/div #js {:className "header"} (str "Time"))
-      (dom/div #js {:className "header"} (str "Score")))
+      (dom/header #js {:className "span time-val"} (str "Time"))
+      (dom/header #js {:className "span score-val"} (str "Score")))
     (dom/div #js {:className "board-area"}
       (dom/div #js {:className "chain-line"})
       (dom/div #js {:className "dot-highlights"})
@@ -218,9 +204,9 @@
       ; as individual args to dom/div.  (dom/div (dom/div) (dom/div) ...)
       (apply dom/div #js {:className "board"
                           :onClick (fn [e] (log "board click"))}
-        ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
-        (make-dots-board app)
-        ))))
+            ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
+            (make-dots-board app))
+      )))
 
 ; create React component for board-component and render update.
 (defn board-component 
@@ -229,7 +215,8 @@
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
       (log "board-screen mounted...")
-      ;(game-loop app (:draw-chan app))  ; once mounted, park thread to render loop
+      ;(dot-chan/game-timer 1000)
+      (dot-chan/game-loop app (:draw-chan app))  ; once mounted, park thread to render loop
       )
 
     om/IWillUpdate
@@ -243,12 +230,12 @@
     
     om/IRenderState
     (render-state [_ {:keys [comm]}]  ; render on every change
-      (log "board screen rendering " screen)
-      (board-screen app comm)
+      (log "board component rendering " screen)
+      (board-screen app)
       )
   ))
 
-; at very beginning, render login screen component inside dots-game-container
+; when start, render login screen component inside dots-game-container
 (om/root login-component app-state
   {:target (.getElementById js/document "dots-game-container")})
 

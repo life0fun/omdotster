@@ -116,6 +116,7 @@
 (defn mouseevent-chan [out-chan selector event msg-name]
   (bind ($ selector) event
         #(do
+          (log "mouse event " event msg-name)
           (put! out-chan [msg-name {:x (.-pageX %) :y (.-pageY %)}]))))
 
 ; Evt hdl injects touch move evt to out-chan. [msg-name {:x :y}]
@@ -200,7 +201,7 @@
                     state)))))))
 
 
-; game timer block until count-down
+; game timer recur read timeout-chan until count-down zero
 (defn game-timer [seconds]
   (go-loop [timeout-chan (timeout 1000)  ; timer time out every second 
             count-down seconds]
@@ -210,8 +211,7 @@
       count-down
       (recur (timeout 1000) (dec count-down)))))
 
-;; =============================================================================
-;      
+;; ============================================================================= 
 ; {:board [[ ; a vec of vec, each dot pos is a tuple has :color and :elem of html
 ;       {:color :blue, :elem #<[object HTMLDivElement]>}.
 ;       {:color :blue, :elem #<[object HTMLDivElement]>}.
@@ -221,6 +221,7 @@
 ;   :dot-chain [],.
 ;   :score 0,.
 ;   :exclude-color nil}.
+; deprecated, only used within this ns.
 (defn setup-game-state []                                                                                                                                                         
   (let [init-state {:board (create-board)}]
     (render-view init-state)
@@ -233,16 +234,15 @@
 ; game loop on each draw gesture. when gesture done, draw dots in draw-chan stored in
 ; state map :dot-chain. remove those dots, and recur by add missing dots.
 (defn game-loop [init-state draw-chan]
-  (log "game-loop on evnt")
   (let [game-over-timeout (game-timer 600)]
     ; go-loop on state, state changes on each draw gesture.
     (go-loop [state init-state]
       ;(render-score state)
       ;(render-position-updates state)
       (let [state (add-missing-dots state)]
-        (<! (timeout 300))
-        (render-position-updates state)
-        ; wait for the reading of draw-chan ret drawing dots in state map :dot-chain
+        ;(<! (timeout 300))
+        ;(render-position-updates state)
+        (log "blocking on draw-chan to ret drawing dots in state map :dot-chain.")
         (let [[state ch] (alts! [(get-dots-to-remove draw-chan state) game-over-timeout])]
           (if (= ch game-over-timeout)
             state ;; leave game loop
