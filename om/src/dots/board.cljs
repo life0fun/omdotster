@@ -122,9 +122,10 @@
 
 ; board is vector of vector.
 ; {:board [[{:color :blue :ele #<[objec]>}]]}
-(defn dot-color [{:keys [board]} dot-pos]
-  (-> board (get-in dot-pos) :color))  ; get-in for nested map, and vector
-
+; (defn dot-color [{:keys [board]} dot-pos]
+;   (-> board (get-in dot-pos) :color))  ; get-in for nested map, and vector
+(defn dot-color [board dot-pos]
+  (-> board (get-in dot-pos) :color))
 
 ; ------------------ dot pos destruct to x, y -----------------------------
 (defn pos->corner-coord [[xpos ypos]]
@@ -207,16 +208,22 @@
       (add-dots-to-board new-dots)
       (vec (concat col new-dots)))))
 
-(defn add-missing-dots 
-  [{:keys [board exclude-color] :as state}]
-  (assoc state :board
-         (vec (map-indexed
-                #(add-missing-dots-helper %1 %2 exclude-color)
-                board))
-         :exclude-color nil))
+; given a state map, repopulate missing dots in board and reset excl color.
+; (defn add-missing-dots
+;   [{:keys [board exclude-color] :as state}]
+;   (assoc state :board
+;          (vec (map-indexed
+;                 #(add-missing-dots-helper %1 %2 exclude-color)
+;                 board))
+;          :exclude-color nil))
 
+; given a board and exclude color, ret a board with added dots
+(defn add-missing-dots [board exclude-color]
+  (vec (map-indexed
+         #(add-missing-dots-helper %1 %2 exclude-color)
+         board)))
 
-; ; ------------------ css style and transition ------------------------------
+;; ------------------ css style and transition ------------------------------
 (defn translate-top [top]
   (str "translate3d(0," (+ offscreen-offset top) "px,0) "))
 
@@ -332,36 +339,51 @@
       ))))
 
 
-(defn dot-follows? [state prev-dot cur-dot]
+; (defn dot-follows? [state prev-dot cur-dot]
+;   (and (not= prev-dot cur-dot)
+;        (or (nil? prev-dot)
+;            (and
+;             (= (dot-color state prev-dot) (dot-color state cur-dot))
+;             (= 1 (apply + (mapv (comp abs -) cur-dot prev-dot)))))))
+(defn dot-follows? [board prev-dot cur-dot]
   (and (not= prev-dot cur-dot)
        (or (nil? prev-dot)
            (and
-            (= (dot-color state prev-dot) (dot-color state cur-dot))
+            (= (dot-color board prev-dot) (dot-color board cur-dot))
             (= 1 (apply + (mapv (comp abs -) cur-dot prev-dot)))))))
 
 ; conj dot-pos to state :dot-chain 
+; (defn transition-dot-chain-state 
+;   [{:keys [dot-chain] :as state} dot-pos]
+;   (if (dot-follows? state (last dot-chain) dot-pos)
+;     (if (and (< 1 (count dot-chain))
+;              (= dot-pos (last (butlast dot-chain))))
+;       (vec (butlast dot-chain))
+;       (conj (or dot-chain []) dot-pos))
+;     dot-chain))
 (defn transition-dot-chain-state 
-  [{:keys [dot-chain] :as state} dot-pos]
-  (if (dot-follows? state (last dot-chain) dot-pos)
+  [board dot-chain dot-pos]
+  (if (dot-follows? board (last dot-chain) dot-pos)
     (if (and (< 1 (count dot-chain))
              (= dot-pos (last (butlast dot-chain))))
       (vec (butlast dot-chain))
       (conj (or dot-chain []) dot-pos))
     dot-chain))
 
-
 (defn items-with-positions [items]
   (apply concat
          (map-indexed #(map-indexed (fn [i item] (assoc item :pos [%1 i])) %2) items)))
 
 (defn get-all-color-dots 
-  [state color]
-  (filter #(= color (:color %)) (items-with-positions (state :board))))
+  [board color]
+  (filter #(= color (:color %)) (items-with-positions board)))
 
-(defn dot-positions-for-focused-color [state]
-  (let [color (dot-color state (-> state :dot-chain first))]
+; (defn dot-positions-for-focused-color [state]
+;   (let [color (dot-color state (-> state :dot-chain first))]
+;       (vec (map :pos (get-all-color-dots state color)))))
+(defn dot-positions-for-focused-color [board dot-chain]
+  (let [color (dot-color board (first dot-chain))]
       (vec (map :pos (get-all-color-dots state color)))))
-
 
 
 ; flash class effect on board-area

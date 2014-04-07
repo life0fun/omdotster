@@ -18,7 +18,7 @@
                         render-dot-chain-update erase-dot-chain transition-dot-chain-state
                         get-dot-div dot-colors dot-color dot-index add-missing-dots
                         flash-color-on flash-color-off
-                        dot-positions-for-focused-color]]
+                        dot-positions-for-focused-color] :as board]
             )
   (:require-macros [cljs.core.async.macros :refer [go go-loop alt!]]
                    [secretary.macros :refer [defroute]])
@@ -41,6 +41,13 @@
 ; reify IRender must ret an Om component, a React component, or a some value that 
 ; React knows how to render. otherwise you get Minified exception.
 
+; Two level of states. App has its own global state. Each component has its own state.
+; cache hierarchy avoid name space collision and separation of global and component specific.
+; om/root [f value options] options map keys allowed in build.
+; om/build item/todo-item todos[] {:init-state {:comm comm} :fn (fn [todo] ())}
+; pattern: create chan in app, pass it to components as comm chan from comp to app.
+; In this single page app, for simplify, we store everything in global app state.
+
 (enable-console-print!)
 
 (def ENTER_KEY 13)
@@ -55,6 +62,7 @@
         drawchan (dot-chan/draw-chan "body")  ; draw chan collect draw evt on body
        ]
     (assoc state
+           :board-offset ((juxt :left :top) (offset ($ ".dots-game .board")))
            :screen :newgame
            :draw-chan drawchan
            :dot-chain [] 
@@ -208,16 +216,22 @@
             (make-dots-board app))
       )))
 
-; create React component for board-component and render update.
+; fn for React component for board-component and render update.
 (defn board-component 
-  [{:keys [dots screen] :as app} owner]
+  [{:keys [board dot-chain screen] :as app} owner]
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
       (log "board-screen mounted...")
       ;(dot-chan/game-timer 1000)
-      (dot-chan/game-loop app (:draw-chan app))  ; once mounted, park thread to render loop
-      )
+      ; pass entire app state to board component. cursor to root of app state.
+      ; (go-loop []
+      ;   (let [newboard (dot-chan/game-loop app (:draw-chan app))]
+      ;     (om/transact! app :board 
+      ;                   (fn [board] newboard)))
+      ; ))
+      ; (dot-chan/game-loop app (:draw-chan app))
+    )
 
     om/IWillUpdate
     (will-update [_ _ _] 
@@ -232,6 +246,7 @@
     (render-state [_ {:keys [comm]}]  ; render on every change
       (log "board component rendering " screen)
       (board-screen app)
+      ;(board/render-dot-chain-update (:board app))
       )
   ))
 
