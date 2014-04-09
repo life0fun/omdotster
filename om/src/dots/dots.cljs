@@ -48,6 +48,9 @@
 ; pattern: create chan in app, pass it to components as comm chan from comp to app.
 ; In this single page app, for simplify, we store everything in global app state.
 
+; when vritual dom re-rendering, all components attached to the DOM re-rendered. 
+; even though no change on the component. Hence, do not put no render logic there.
+
 (enable-console-print!)
 
 (def ENTER_KEY 13)
@@ -103,7 +106,8 @@
 (defn set-state-screen [app start-time]
   (om/transact! app :screen
     (fn [screen] 
-      (log "handle event set state screen to :start ") :start)
+      (log "handle event set state screen to :start ") 
+      :start)   ; ret :start
     [:start start-time]))
 
 (defn edit-todo [app {:keys [id]}] (om/update! app :editing id))
@@ -155,20 +159,21 @@
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
-      (let [login-chan (chan)]  ; create chan upon mount 
-        (om/set-state! owner :login-chan login-chan)
-        ; once mounted, park a thread to process login chan evt
-        (log "login-component mounted, wait for start button")
-        (go []
-          (let [[type value] (<! login-chan)]  ; block on click start
-            (log "login chan newgame event " type " " value)
-            (when (== :newgame type)     ; upon newgame evt, set screen state, show board screen
-              (set-state-screen app val)
-              (log "login-component newgame started, start board render loop")
-              (om/root board-component app-state 
-                       {:target (.getElementById js/document "dots-game-container")})
-              )))
-        ))
+      (when (= screen :newgame)
+        (let [login-chan (chan)]  ; create chan upon mount 
+          (om/set-state! owner :login-chan login-chan)
+          ; once mounted, park a thread to process login chan evt
+          (log "login-component mounted, wait for start button")
+          (go []
+            (let [[type value] (<! login-chan)]  ; block on click start
+              (log "login chan newgame event " type " " value)
+              (when (== :newgame type)     ; upon newgame evt, set screen state, show board screen
+                (set-state-screen app val)  ; update app state
+                (log "login-component newgame started, om/root board render loop")
+                (om/root board-component app-state 
+                         {:target (.getElementById js/document "dots-game-container")})
+                )))
+          )))
 
     om/IWillUpdate
     (will-update [_ _ _] 
@@ -184,7 +189,8 @@
       (log "login component render :screen " screen)
       (if (= screen :newgame)
         (login-screen app login-chan)  ; pass login-chan to coll evt from login screen
-        (dom/div nil nil)
+        ;(dom/div nil nil)
+        (board-screen app)
         ))
   ))
 
@@ -216,22 +222,28 @@
             (make-dots-board app))
       )))
 
+(defn game [app board]
+  (let [;game-over-timeout (game-timer 600)
+       ]
+    (log "board : " board)
+  ))
+
 ; fn for React component for board-component and render update.
 (defn board-component 
-  [{:keys [board dot-chain screen] :as app} owner]
+  [{:keys [board dot-chain screen draw-chan] :as app} owner]
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
-      (log "board-screen mounted...")
+      (log "board-screen mounted..." screen dot-chain (keys app))
       ;(dot-chan/game-timer 1000)
       ; pass entire app state to board component. cursor to root of app state.
-      ; (go-loop []
-      ;   (let [newboard (dot-chan/game-loop app (:draw-chan app))]
-      ;     (om/transact! app :board 
-      ;                   (fn [board] newboard)))
-      ; ))
-      ; (dot-chan/game-loop app (:draw-chan app))
-    )
+      (go-loop []
+        ; (let [newboard (dot-chan/game-loop app)]
+        ;   (om/transact! app :board 
+        ;                 (fn [board] newboard)))
+        ;(dot-chan/game-loop app)
+        (game app board )
+      ))
 
     om/IWillUpdate
     (will-update [_ _ _] 
@@ -244,9 +256,8 @@
     
     om/IRenderState
     (render-state [_ {:keys [comm]}]  ; render on every change
-      (log "board component rendering " screen)
+      (log "board component rendering screen: " screen)
       (board-screen app)
-      ;(board/render-dot-chain-update (:board app))
       )
   ))
 

@@ -285,34 +285,37 @@
 ;                   state)
 ;                 ))))))))
 
-(defn game-loop [app-state draw-chan]
+(defn game-loop [app-state]
   (let [game-over-timeout (game-timer 600)
-        {:keys [board exclude-color dot-chain]} app-state
+        {:keys [board exclude-color dot-chain draw-chan]} app-state
        ]
-    (go-loop [board board
-              dot-chain dot-chain 
-              exclude-color exclude-color]
+    ; (go-loop [;board app-board
+    ;           ;dot-chain app-dot-chain 
+    ;           ;exclude-color app-exclude-color
+    ;           ]
       ;(render-score state)
       ;(render-position-updates state)
       ;(<! (timeout 300))
       ;(render-position-updates state)
-      (add-missing-dots board exclude-color)
       (log "blocking on draw-chan to ret drawing dots in state map :dot-chain.")
-      (let [[chan-value ch] 
-              (alts! [(get-dots-to-remove app-state board draw-chan dot-chain) 
-                      game-over-timeout])]
-        (if (= ch game-over-timeout)
-          board   ; game end, return board upon time out
-          (let [{:keys [board dot-chain exclude-color]} chan-value]  
-            (log "game loop recur " dot-chain) ; dot-chain = [[0 4] [1 4]]
-            (when (< 1 (count dot-chain))
-              (render-remove-dots dot-chain))
-            (om/transact! app-state :board #(constantly board))
-            (recur  ; dots in draw-chan get maps to vec pos index and store in :dot-chain in board map
-              board
-              dot-chain
-              exclude-color)))
-        ))))
+      ;board
+      ;(add-missing-dots board exclude-color)
+      ; (let [[chan-value ch] 
+      ;         (alts! [(get-dots-to-remove app-state board draw-chan dot-chain) 
+      ;                 game-over-timeout])]
+      ;   (if (= ch game-over-timeout)
+      ;     board   ; game end, return board upon time out
+      ;     (let [{:keys [board dot-chain exclude-color]} chan-value]  
+      ;       (log "game loop recur " dot-chain) ; dot-chain = [[0 4] [1 4]]
+      ;       (when (< 1 (count dot-chain))
+      ;         (render-remove-dots dot-chain))
+      ;       (om/transact! app-state :board #(constantly board))
+      ;       (recur  ; dots in draw-chan get maps to vec pos index and store in :dot-chain in board map
+      ;         board
+      ;         dot-chain
+      ;         exclude-color))))
+      ;)
+  ))
 
 ; collect draw msg from body into draw-chan, goloop remove all dots in draw-chan
 (defn app-loop []
