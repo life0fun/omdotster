@@ -51,6 +51,9 @@
 ; when vritual dom re-rendering, all components attached to the DOM re-rendered. 
 ; even though no change on the component. Hence, do not put no render logic there.
 
+; within render phase, app state cursor is open to mutate.
+; outside render phase, i.e, fn runs inside go-loop block, om/update or @cursor. 
+
 (enable-console-print!)
 
 (def ENTER_KEY 13)
@@ -68,16 +71,16 @@
            :board-offset ((juxt :left :top) (offset ($ ".dots-game .board")))
            :screen :newgame
            :draw-chan drawchan
-           :dot-chain [] 
+           :dot-chain [:head ]
            :score 0
-           :exclude-color [])))
+           :exclude-color [:none])))
 
 ; Ref protect global app-state tree map; component fn gets a cursor to this tree map.
 (def app-state (atom (setup-game-state)))
 
 ;; =============================================================================
 ;; Routing
-(defroute "/" [] (swap! app-state assoc :dot-chain []))
+;(defroute "/" [] (swap! app-state assoc :dot-chain []))
 (defroute "/:filter" [filter] (swap! app-state assoc :showing (keyword filter)))
 
 (def history (History.))
@@ -222,27 +225,21 @@
             (make-dots-board app))
       )))
 
-(defn game [app board]
-  (let [;game-over-timeout (game-timer 600)
-       ]
-    (log "board : " board)
-  ))
-
 ; fn for React component for board-component and render update.
 (defn board-component 
-  [{:keys [board dot-chain screen draw-chan] :as app} owner]
+  [{:keys [board dot-chain exclude-color screen draw-chan board-offset] :as app} owner]
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
-      (log "board-screen mounted..." screen dot-chain (keys app))
+      (log "board-screen mounted..." screen)
       ;(dot-chan/game-timer 1000)
       ; pass entire app state to board component. cursor to root of app state.
       (go-loop []
         ; (let [newboard (dot-chan/game-loop app)]
         ;   (om/transact! app :board 
         ;                 (fn [board] newboard)))
-        ;(dot-chan/game-loop app)
-        (game app board )
+        (log "mounted app-state " @app)
+        (dot-chan/game-loop @app)
       ))
 
     om/IWillUpdate

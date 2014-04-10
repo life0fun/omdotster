@@ -199,14 +199,19 @@
 ; ; create-dot and append to board div, concat new dot to state[col] list.
 (defn add-missing-dots-helper 
   [col-idx col exclude-color]
-  (if (= (count col) board-size)
-    col
-    (let [new-dots (map create-dot
-                        (repeat col-idx)
-                        (repeat offscreen-dot-position)
-                        (take (- board-size (count col)) (rand-colors exclude-color)))]
-      (add-dots-to-board new-dots)
-      (vec (concat col new-dots)))))
+  (log "add-missing-dots " (count col))
+  (map #(log "dot is " %) col)
+  ; (if (= (count col) board-size)
+  ;   col
+  ;   (let [new-dots (map create-dot
+  ;                       (repeat col-idx)
+  ;                       (repeat offscreen-dot-position)
+  ;                       (take (- board-size (count col)) (rand-colors exclude-color)))]
+  ;     (add-dots-to-board new-dots)
+  ;     ;(vec (concat col new-dots))
+  ;     col
+  ;   ))
+  )
 
 ; given a state map, repopulate missing dots in board and reset excl color.
 ; (defn add-missing-dots
@@ -220,7 +225,7 @@
 ; given a board and exclude color, ret a board with added dots
 (defn add-missing-dots [board exclude-color]
   (vec (map-indexed
-         #(add-missing-dots-helper %1 %2 exclude-color)
+         #(add-missing-dots-helper %1 %2 exclude-color) ; col-index and a col of dots
          board)))
 
 ;; ------------------ css style and transition ------------------------------
@@ -291,7 +296,6 @@
     (map-indexed
       #(render-position-updates-helper %1 %2)
       board)))
-
 
 
 ; double line in background in style when dots chained
