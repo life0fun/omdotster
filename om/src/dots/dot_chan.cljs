@@ -202,6 +202,7 @@
   [board dot-chain draw-chan board-offset]
   (go-loop [dot-chain dot-chain]
     ;(render-dot-chain-update last-state state)
+    (log "get-dots-to-remove dot-chain " dot-chain (dot-chain-cycle? dot-chain))
     (if (dot-chain-cycle? dot-chain)
       (let [color (dot-color board (first dot-chain))] ; color of first dot in dot-chain
         (flash-color-on color) ; add flash class to .board-area
@@ -285,14 +286,20 @@
 ;                   state)
 ;                 ))))))))
 
-(defn game-loop 
-  [{keys [board dot-chain exclude-color draw-chan board-offset] :as app-state}]
-  (let [game-over-timeout (game-timer 600)
+(defn game-loop [app-state]
+  ; not sure why I can not destructure app-state ?
+  (let [board (:board app-state)
+        dot-chain (:dot-chain app-state)
+        exclude-color (:exclude-color app-state)
+        ;draw-chan (:draw-chan app-state)
+        draw-chan (draw-chan "body")
+        board-offset (:board-offset app-state)
+        game-over-timeout (game-timer 600)
        ]
-    (log "game loop " @dot-chain @exclude-color)
-    (go-loop [updated-board @board
-              updated-dot-chain @dot-chain 
-              updated-exclude-color @exclude-color
+    (log "game loop " dot-chain exclude-color)
+    (go-loop [updated-board board
+              updated-dot-chain dot-chain 
+              updated-exclude-color exclude-color
              ]
       ;(render-score state)
       ;(render-position-updates state)
@@ -300,22 +307,22 @@
       ;(render-position-updates state)
       (add-missing-dots updated-board updated-exclude-color)
       (log "blocking on draw-chan to ret drawing dots to updated-dot-chain.")
-      ; (let [[chan-value ch] 
-      ;         (alts! [(get-dots-to-remove updated-board draw-chan updated-dot-chain board-offset) 
-      ;                 game-over-timeout])]
-      ;   (log "chan-value returns " ch)
+      (let [[chan-value ch]
+              (alts! [(get-dots-to-remove updated-board updated-dot-chain draw-chan board-offset) 
+                      game-over-timeout])]
+        (log "chan-value returns " ch)
       ;   (if (= ch game-over-timeout)
       ;     updated-board   ; game end, return board upon time out
-          ; (let [{:keys [board dot-chain exclude-color]} chan-value]  
-          ;   (log "game loop recur " dot-chain) ; dot-chain = [[0 4] [1 4]]
-          ;   (when (< 1 (count dot-chain))
-          ;     (render-remove-dots dot-chain))
-          ;   (om/transact! app-state :board #(constantly board))
-          ;   (recur  ; dots in draw-chan get maps to vec pos index and store in :dot-chain in board map
-          ;     board
-          ;     dot-chain
-          ;     exclude-color))
-      ;    ))
+      ;     (let [{:keys [updated-board updated-dot-chain updated-exclude-color]} chan-value]  
+      ;       (log "game loop recur " updated-dot-chain) ; dot-chain = [[0 4] [1 4]]
+      ;       (when (< 1 (count updated-dot-chain))
+      ;         (render-remove-dots updated-dot-chain))
+      ;       ;(om/transact! app-state :board #(constantly board))
+      ;       (recur  ; dots in draw-chan get maps to vec pos index and store in :dot-chain in board map
+      ;         updated-board
+      ;         updated-dot-chain
+      ;         updated-exclude-color)))
+        )
       )
   ))
 
