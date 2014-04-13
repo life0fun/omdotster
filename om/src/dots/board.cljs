@@ -114,6 +114,7 @@
 ; map x,y co-ordinate into board matrix i,j
 (defn dot-index 
   [offset {:keys [x y]}]  ; offset is board offset
+  (log "dot-index x=" x " y=" y)
   (let [[x y] (map - [x y] offset [12 12])]  ; (x-offset-12, y-offset-12)
     (let [ypos (reverse-board-position (int (/ y grid-unit-size)))
           xpos (int (/ x grid-unit-size))]
@@ -125,7 +126,9 @@
 ; (defn dot-color [{:keys [board]} dot-pos]
 ;   (-> board (get-in dot-pos) :color))  ; get-in for nested map, and vector
 (defn dot-color [board dot-pos]
-  (-> board (get-in dot-pos) :color))
+  (let [color (-> board (get-in dot-pos) :color)]
+    (log "dot-color " dot-pos color)
+    color))
 
 ; ------------------ dot pos destruct to x, y -----------------------------
 (defn pos->corner-coord [[xpos ypos]]
@@ -199,18 +202,16 @@
 ; ; create-dot and append to board div, concat new dot to state[col] list.
 (defn add-missing-dots-helper 
   [col-idx col exclude-color]
-  (log "add-missing-dots " (count col))
-  (map #(log "dot is " %) col)
-  ; (if (= (count col) board-size)
-  ;   col
-  ;   (let [new-dots (map create-dot
-  ;                       (repeat col-idx)
-  ;                       (repeat offscreen-dot-position)
-  ;                       (take (- board-size (count col)) (rand-colors exclude-color)))]
-  ;     (add-dots-to-board new-dots)
-  ;     ;(vec (concat col new-dots))
-  ;     col
-  ;   ))
+  (if (= (count col) board-size)
+    col
+    (let [new-dots (map create-dot
+                        (repeat col-idx)
+                        (repeat offscreen-dot-position)
+                        (take (- board-size (count col)) (rand-colors exclude-color)))]
+      (add-dots-to-board new-dots)
+      (vec (concat col new-dots))
+      col
+    ))
   )
 
 ; given a state map, repopulate missing dots in board and reset excl color.
@@ -367,12 +368,16 @@
 ;     dot-chain))
 (defn transition-dot-chain-state 
   [board dot-chain dot-pos]
-  (if (dot-follows? board (last dot-chain) dot-pos)
-    (if (and (< 1 (count dot-chain))
-             (= dot-pos (last (butlast dot-chain))))
-      (vec (butlast dot-chain))
-      (conj (or dot-chain []) dot-pos))
-    dot-chain))
+  (let [follows (dot-follows? board (last dot-chain) dot-pos)
+        dots (count dot-chain)
+       ]
+    (log "transition-dot-chain-state " dot-chain " pos " dot-pos "follows " follows)
+    (if follows
+      (if (and (< 1 (count dot-chain))
+               (= dot-pos (last (butlast dot-chain))))
+        (vec (butlast dot-chain))
+        (conj (or dot-chain []) dot-pos))
+      dot-chain)))
 
 (defn items-with-positions [items]
   (apply concat

@@ -54,6 +54,10 @@
 ; within render phase, app state cursor is open to mutate.
 ; outside render phase, i.e, fn runs inside go-loop block, om/update or @cursor. 
 
+; Do not use traditional blocking call to get the return value.!!!!
+; Always use chan to connect different components. read chan inside go or go-loop block.
+; In IWillMount, (go-loop (let [evt (<! chan)] (handle-event evt)))
+
 (enable-console-print!)
 
 (def ENTER_KEY 13)
@@ -71,9 +75,9 @@
            :board-offset ((juxt :left :top) (offset ($ ".dots-game .board")))
            :screen :newgame
            :draw-chan drawchan
-           :dot-chain [:head ]
+           :dot-chain []
            :score 0
-           :exclude-color [:none])))
+           :exclude-color [])))
 
 ; Ref protect global app-state tree map; component fn gets a cursor to this tree map.
 (def app-state (atom (setup-game-state)))
@@ -192,7 +196,6 @@
       (log "login component render :screen " screen)
       (if (= screen :newgame)
         (login-screen app login-chan)  ; pass login-chan to coll evt from login screen
-        ;(dom/div nil nil)
         (board-screen app)
         ))
   ))
@@ -212,8 +215,10 @@
 (defn board-screen [{:keys [board screen dot-chain] :as app}]
   (dom/div #js {:id "main" :className "dots-game"}
     (dom/header #js {:id "header"}
-      (dom/header #js {:className "span time-val"} (str "Time"))
-      (dom/header #js {:className "span score-val"} (str "Score")))
+      (dom/div #js {:className "heads"} (str "Time")
+        (dom/span #js {:className "time-val"} (str "601")))
+      (dom/div #js {:className "heads"} (str "Time")
+        (dom/span #js {:className "score-val"} (str "201"))))
     (dom/div #js {:className "board-area"}
       (dom/div #js {:className "chain-line"})
       (dom/div #js {:className "dot-highlights"})
@@ -231,15 +236,12 @@
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
-      (log "board-screen mounted..." screen)
-      ;(dot-chan/game-timer 1000)
-      ; pass entire app state to board component. cursor to root of app state.
       (go-loop []
-        ; (let [newboard (dot-chan/game-loop app)]
-        ;   (om/transact! app :board 
-        ;                 (fn [board] newboard)))
         (log "mounted app-state " @app)
-        (dot-chan/game-loop @app)
+        ; pass app state cursor to game loop where app state will be loop updated.
+        ; you can also create a chan, pass to game loop, where chan got filled,
+        ; and read game loop state from chan, and update here.
+        (dot-chan/game-loop app)
       ))
 
     om/IWillUpdate
