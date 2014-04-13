@@ -7,14 +7,14 @@ We demonstrate the power of `om` with an implemenation of Dotster Game.
 The original Dotster game is implemented in ClojureScript using the Core.async library. [See the blog post explaining the game](http://rigsomelight.com/2013/08/12/clojurescript-core-async-dots-game.html)
 
 
-## OM Patterns
+## Immutable State 
 
-We shall defn a function to create one individual component for each screen.
-Within each component, om provides hooks at different stages during component's life cycle. 
+Om offers an approach more or less analogous to React's, but does not actually pass raw React props or states to implementers of the life cycle protocols. Instead om passes immutable values in both cases.
 
-We need to reify various Om life cycle protocols to hook into component life cycle to mutate states and render new states.
+OM has two levels of state cache, a global level caches of React's application state, and a component local cache of app state.
+The reason for component local level state cache is to avoid pollution of the original data with transient application state information. Editing a text field is a good example of this. The other useful aspect of being able to set component local state is that it's always guaranteed to be up-to-date. This is not true for application state since Om renders on `requestAnimationFrame`, and application state information is only guaranteed to be consistent during the render phase. Thus event handlers must ask for an up-to-date view of the application state.
 
-Om has two level of mutatable state, global level app state, and component level local state. To mutate app state,
+To mutate global state,
     
     (om/transact! app-state :prop (fn [old-state] ...))
 
@@ -35,8 +35,13 @@ With CSP channel, producer and consumer communicate through decentralized, decou
 
 ## OM Pattern
 
+We shall defn a function to create one individual component for each screen.
+Within each component, om provides hooks at different stages during component's life cycle. 
+
+We need to reify various Om life cycle protocols to hook into component life cycle to mutate states and render new states.
+
 When component mounted to DOM, create handle for UI events, and collect event into channel so event handlers can consume events.
-When event handlers mutate states, it need to use `om/transact!` or `om/set-state` as it is running inside go-loop threads/channels. 
+When event handlers mutate states, it need to use `om/transact!` or `om/update!` for global state and `om/update-state!` or `om/set-state` as it is running inside go-loop threads/channels. 
 
     (defn todo-app [{:keys [todos] :as app} owner]
       (reify
