@@ -22,6 +22,16 @@ To mutate local state, use set-state! for component owner.
 
     (defn set-state! ([owner korks v] ...))
 
+
+Om components like React components take props. In Om components the props are actually a cursor into the app state. Cursor can be viewed as the path information to determine their location in the app state. Normally, app state is atom of nested maps. Hence, you can use get-in to retrieve props pointed by cursor.
+
+    (defn board-component 
+      [{:keys [board dot-chain] :as app-state-cursor} owner]
+      (reify
+        om/IWillMount (will-mount [_] (...))
+        om/IDidUpdate (did-update [_ _ _] (...))
+        om/IRenderState (render-state [_ {:keys [comm]}] (...)))) 
+
 ## Internal Component Communication
 
 In imperative world, we invoke function calls and synchronously wait for results.

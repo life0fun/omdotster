@@ -110,11 +110,12 @@
       (if (and (> board-size ypos -1) (> board-size xpos -1))
         [xpos ypos]))))
 
-; board is vector of vector.
+; board is vector of vector. ; get-in for nested map, and vector
 ; {:board [[{:color :blue :ele #<[objec]>}]]}
 (defn dot-color [{:keys [board]} dot-pos]
-  (-> board (get-in dot-pos) :color))  ; get-in for nested map, and vector
-
+  (let [color (-> board (get-in dot-pos) :color)]
+    (log "dot-color " dot-pos " " color)
+    color))
 
 ; ------------------ dot pos destruct to x, y -----------------------------
 (defn pos->corner-coord [[xpos ypos]]
