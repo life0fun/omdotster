@@ -67,23 +67,6 @@
   (map (fn [x c] [:span {:class (name c)} x]) word (rand-colors)))
 
 ; ----------- game screen and board -----------------
-(defn score-screen [score]
-  [:div.dots-game
-    [:div.notice-square
-      [:div.marq (concat (colorize-word "SCORE") [[:span " "]]
-                         (colorize-word (str score)))]
-      [:div.control-area
-        [:a.start-new-game {:href "#"} "new game"]]]])
-
-(defn board [{:keys [board] :as state}]
-  [:div.dots-game
-    [:div.header 
-      [:div.heads "Time " [:span.time-val]]
-      [:div.heads "Score " [:span.score-val]]]
-    [:div.board-area
-      [:div.chain-line ]
-      [:div.dot-highlights]
-      [:div.board]]])
 
 ; set div's inner html to crate/html [:div.dots-game]
 (defn render-screen [screen]
@@ -126,7 +109,9 @@
 ; (defn dot-color [{:keys [board]} dot-pos]
 ;   (-> board (get-in dot-pos) :color))  ; get-in for nested map, and vector
 (defn dot-color [board dot-pos]
-  (let [color (-> board (get-in dot-pos) :color)]
+  (let [[xpos ypos] dot-pos
+        pos [xpos (- (dec board-size) ypos)]
+        color (-> board (get-in pos) :color)]
     (log "dot-color " dot-pos color)
     color))
 
@@ -184,6 +169,7 @@
                           :style #js {:top (:top style) :left (:left style)}})))
         dots))
 
+
 ; board is vec of vec.
 ; (def world (apply vector
 ;   (map (fn [_] (apply vector (map (fn [_] (ref (struct cell 0 0))) (range dim))))
@@ -226,8 +212,8 @@
 ; given a board and exclude color, ret a board with added dots
 (defn add-missing-dots [board exclude-color]
   (vec (map-indexed
-         #(add-missing-dots-helper %1 %2 exclude-color) ; col-index and a col of dots
-         board)))
+          #(add-missing-dots-helper %1 %2 exclude-color) ; col-index and a col of dots
+          board)))
 
 ;; ------------------ css style and transition ------------------------------
 (defn translate-top [top]
@@ -329,7 +315,7 @@
         chain-length      (count dot-chain)]
     (when (and (not= last-chain-length chain-length) (pos? chain-length))
       (let [color (dot-color state (first dot-chain))
-            length-diff            (- chain-length last-chain-length)]
+            length-diff (- chain-length last-chain-length)]
         (if (< 1 chain-length)
           (if (pos? length-diff)
             ; (append ($ ".dots-game .chain-line")

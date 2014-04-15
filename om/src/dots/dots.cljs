@@ -170,8 +170,8 @@
         (let [login-chan (chan)]  ; create chan upon mount 
           (om/set-state! owner :login-chan login-chan)
           ; once mounted, park a thread to process login chan evt
-          (log "login-component mounted, wait for start button")
           (go []
+            (log "login-component mounted, wait for start button")
             (let [[type value] (<! login-chan)]  ; block on click start
               (log "login chan newgame event " type " " value)
               (when (== :newgame type)     ; upon newgame evt, set screen state, show board screen
