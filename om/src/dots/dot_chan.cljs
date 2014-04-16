@@ -17,8 +17,7 @@
                         flash-color-on flash-color-off
                         dot-positions-for-focused-color] :as board])
   (:require-macros [cljs.core.async.macros :refer [go go-loop alt!]]
-                   [secretary.macros :refer [defroute]])
-  )
+                   [secretary.macros :refer [defroute]]))
 
 
 ; ----------------------------------------------------------------------------
@@ -191,10 +190,10 @@
       ; blocking on draw-chan until draw-chan ret a chan contains [:draw-start :draw ... :drawend ]
       ; read chan could block, and each read rets one and only one event.
       (let [[msg point] (<! draw-chan)]
-        (log "draw-chan " msg " " point " " dot-chain)
         (if (= msg :drawend)
-          (do 
+          (do
             (erase-dot-chain)   ; reset .dot-highlights ""
+            (log "draw-chan :drawend " msg " " point " " dot-chain)
             {:board board 
              :dot-chain dot-chain 
              :exclude-color exclude-color}
@@ -264,10 +263,10 @@
                       game-over-timeout])]
         (if (= ch game-over-timeout)
           board   ; game end, return board upon time out
-          (let [{:keys [board dot-chain exclude-color]} chan-value]  
+          (let [{:keys [board dot-chain exclude-color]} chan-value]
+            (log "game loop get-dots-to-remove ret " dot-chain)  ; dot-chain = [[0 4] [1 4]]
             (when (< 1 (count dot-chain))
-              (render-remove-dots dot-chain))
-            (log "game loop recur draw-chan draw end dot-chain " dot-chain) ; dot-chain = [[0 4] [1 4]]
+              (render-remove-dots board dot-chain))
             (om/transact! app :board 
               (fn [old-board] board))
             (recur board dot-chain exclude-color)

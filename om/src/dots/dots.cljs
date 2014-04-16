@@ -237,7 +237,7 @@
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
       (go-loop []
-        (log "mounted app-state " @app)
+        ; (log "mounted app-state " @app)
         ; pass app state cursor to game loop where app state will be loop updated.
         ; you can also create a chan, pass to game loop, where chan got filled,
         ; and read game loop state from chan, and update here.

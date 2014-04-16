@@ -11,8 +11,7 @@
     [clojure.string :refer [join blank? replace-first]]
     [clojure.set :refer [union]]
     
-    [om.dom :as dom :include-macros true]
-    )
+    [om.dom :as dom :include-macros true])
   (:require-macros [cljs.core.async.macros :as m :refer [go go-loop alt!]]))
 
 
@@ -108,10 +107,10 @@
 ; {:board [[{:color :blue :ele #<[objec]>}]]}
 ; (defn dot-color [{:keys [board]} dot-pos]
 ;   (-> board (get-in dot-pos) :color))  ; get-in for nested map, and vector
-(defn dot-color [board dot-pos]
-  (let [[xpos ypos] dot-pos
-        pos [xpos (- (dec board-size) ypos)]
-        color (-> board (get-in pos) :color)]
+; YPos in board is calc-ed from reverse board position, when index into board, reverse back.
+(defn dot-color [board [xpos ypos]]
+  (let [dot-pos [xpos (- (dec board-size) ypos)]
+        color (-> board (get-in dot-pos) :color)]
     (log "dot-color " dot-pos color)
     color))
 
@@ -221,6 +220,7 @@
 
 
 ; remove a dot by ($ele).remove, with some css animation.
+; {:color :blue, :style {:top "-112px;", :left "23px;"}, :classname "dot levelish blue level-0"} 
 (defn remove-dot [{:keys [elem] :as dot}]
   (go
     (let [$elem ($ elem)  ; select the dot
@@ -242,19 +242,28 @@
   [dot-chain-set col]
   (let [dots-to-remove (keep-indexed #(if (dot-chain-set %1) %2) col)
         next_col     (keep-indexed #(if (not (dot-chain-set %1)) %2) col)]
-    (doseq [dot dots-to-remove]
-      (remove-dot dot))
+    ; (doseq [dot dots-to-remove]
+    ;   (remove-dot dot))
     (vec next_col)))
 
 
 ; just update state board with new board
-(defn render-remove-dots [state dot-chain]
-  (let [dot-chain-groups  (group-by first dot-chain)
+; (defn render-remove-dots [state dot-chain]
+;   (let [dot-chain-groups  (group-by first dot-chain)
+;         next_board (map-indexed #(render-remove-dots-row-helper
+;                                     (set (map last (get dot-chain-groups %1))) 
+;                                     %2)
+;                                 (state :board))]
+;     (assoc state :board (vec next_board))))
+
+(defn render-remove-dots [board dot-chain]
+  (let [dot-chain-groups  (group-by first dot-chain) ; {2 [[2 0]], 3 [[3 0]]}
         next_board (map-indexed #(render-remove-dots-row-helper
                                     (set (map last (get dot-chain-groups %1))) 
                                     %2)
-                                (state :board))]
-    (assoc state :board (vec next_board))))
+                                board)]
+    (vec next_board)))
+
 
 ; update dot by adding css class. 
 (defn update-dot [dot pos]
