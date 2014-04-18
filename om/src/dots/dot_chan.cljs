@@ -250,8 +250,7 @@
     ; same name local var shadow and start loop recur
     (go-loop [board board
               dot-chain dot-chain 
-              exclude-color exclude-color
-             ]
+              exclude-color exclude-color]
       ;(render-score state)
       ;(render-position-updates state)
       (<! (timeout 300))
@@ -264,11 +263,10 @@
         (if (= ch game-over-timeout)
           board   ; game end, return board upon time out
           (let [{:keys [board dot-chain exclude-color]} chan-value]
-            (log "game loop get-dots-to-remove ret " dot-chain)  ; dot-chain = [[0 4] [1 4]]
+            (log "game loop get-dots-to-remove dot-chain " dot-chain)  ; dot-chain = [[0 4] [1 4]]
             (when (< 1 (count dot-chain))
-              (render-remove-dots board dot-chain))
-            (om/transact! app :board 
-              (fn [old-board] board))
+              (om/transact! app :board
+                (fn [old-board] (render-remove-dots board dot-chain))))
             (recur board dot-chain exclude-color)
           ))
         )
