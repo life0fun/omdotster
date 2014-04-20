@@ -153,25 +153,27 @@
 (def render-start nil)
 
 ; --------------------------------------------------------------------------
-; create start screen with new game button
-; pass in app state and login-chan so to send back evt to app
 (defn login-screen [app login-chan]
-  (dom/div #js {:className "dots-game"}
-    (dom/div #js {:className "notice-square"}
-      (dom/div #js {:className "marq"}
-        (dom/span #js {:className "purple"} (str "S"))
-        (dom/span #js {:className "purple"} (str "C"))
-        (dom/span #js {:className "yellow"} (str "O"))
-        (dom/span #js {:className "green"} (str "R"))
-        (dom/span #js {:className "red"} (str "E"))
-        (dom/span nil)
-        (dom/span #js {:className "red"} (str "2")))
-      (dom/div #js {:className "control-area"}
-        (dom/a #js {:className "start-new-game" :href "#"
-                    :onClick (fn [e] (log "start game clicked, put :newgame evt") 
-                                     (put! login-chan [:newgame (now)]))} 
-                   "new game")))))
-
+  (html/html
+    [:div.dots-game
+      [:div.notice-square
+        [:div.marq
+          [:span.purple "S"]
+          [:span.yellow "C"]
+          [:span.green "O"]
+          [:span.red "R"]
+          [:span.purple "E"]
+          [:span]
+          [:span.red "2"]]
+        [:div.control-area
+          [:a.start-new-game 
+            {:href "#" 
+             :on-click (fn [e] 
+                         (log "start game clicked, chan :newgame")
+                         (put! login-chan [:newgame (now)]))
+            } 
+            "new game"]]
+        ]]))
 
 ; create React component for login-component and render update.
 ; login chan msg tuple = [type value], first arg is app-state cursor.
@@ -217,31 +219,52 @@
 ; mapv add-dots-to-board (state :board)
 ; doseq {:kesy [elem] dots}
 ; get vec of vec dots from state board, extract :elem, ret a vec of divs
-; (dom/div #js {:className (str "dot levelish") :style style})
+
+; (mapv (comp vec :elem) dot), Always need to ensure hiccup vector tag.
 (defn make-dots-board
   [app]
   (let [board (:board app)
-        dots (mapcat get-dot-div board)]
-    dots))
+        dots (vec (mapcat #(mapv (comp vec :elem) %) board))
+        ;dots (mapv :elem %) (first board))  XXX need convert to vec
+        ; dots [[:div {:class "dot levelish purple level-0"}]
+        ;         [:div {:class "dot levelish blue level-1"}]]
+       ]
+    (log "make-dots-board " (vec dots))
+    (vec dots)))
 
-; board screen with each dot a div 
+; ; board screen with each dot a div 
+; (defn board-screen [{:keys [board screen dot-chain] :as app}]
+;   (dom/div #js {:id "main" :className "dots-game"}
+;     (dom/header #js {:id "header"}
+;       (dom/div #js {:className "heads"} (str "Time")
+;         (dom/span #js {:className "time-val"} (str "601")))
+;       (dom/div #js {:className "heads"} (str "Time")
+;         (dom/span #js {:className "score-val"} (str "201"))))
+;     (dom/div #js {:className "board-area"}
+;       (dom/div #js {:className "chain-line"})
+;       (dom/div #js {:className "dot-highlights"})
+;       ; apply unwrap list of dom/div reted from make-dots-board, make them
+;       ; as individual args to dom/div.  (dom/div (dom/div) (dom/div) ...)
+;       (apply dom/div #js {:className "board"
+;                           :onClick (fn [e] (log "board click"))}
+;             ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
+;             (make-dots-board app))
+;       )))
+
 (defn board-screen [{:keys [board screen dot-chain] :as app}]
-  (dom/div #js {:id "main" :className "dots-game"}
-    (dom/header #js {:id "header"}
-      (dom/div #js {:className "heads"} (str "Time")
-        (dom/span #js {:className "time-val"} (str "601")))
-      (dom/div #js {:className "heads"} (str "Time")
-        (dom/span #js {:className "score-val"} (str "201"))))
-    (dom/div #js {:className "board-area"}
-      (dom/div #js {:className "chain-line"})
-      (dom/div #js {:className "dot-highlights"})
-      ; apply unwrap list of dom/div reted from make-dots-board, make them
-      ; as individual args to dom/div.  (dom/div (dom/div) (dom/div) ...)
-      (apply dom/div #js {:className "board"
-                          :onClick (fn [e] (log "board click"))}
-            ;(dom/div #js {:className "dot levelish red level-1" :style #js {:top "-112px", :left "158px"}})
-            (make-dots-board app))
-      )))
+  (html/html
+    [:div#main.dots-game
+      [:header.header
+        [:div.heads "Time"
+          [:span.time-val "600"]]
+        [:div.heads "Score"
+          [:span.score-val "201"]]]
+      [:div.board-area
+        [:div.chain-line]
+        [:div.dot-highlights]
+        (into [:div.board] (vec (make-dots-board app)))
+      ]
+    ]))
 
 ; fn for React component for board-component and render update.
 (defn board-component 

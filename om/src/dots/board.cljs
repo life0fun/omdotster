@@ -152,20 +152,12 @@
 (defn create-dot [xpos ypos color]
   (let [style (starting-dot [xpos ypos] color)
         classname (str "dot levelish " (name color) " level-" ypos)
-        dot {:color color :style style :classname classname :dot-id (str xpos "-" ypos)}]
-    (log "create-dot x: " xpos " y: " ypos " " style " " color " " (:dot-id dot))
+        dot {:color color :style style :classname classname :dot-id (str xpos "-" ypos)
+             :elem (vec [:div {:class classname :style style}])
+            }
+        ]
+    (log "create-dot x: " xpos " y: " ypos " " style " " color " " (:elem dot))
     dot))
-
-
-; given a row of dots prop map, ret a list of dom/div
-; JavaScript literal must use map or vector notation, so one more indirection
-(defn get-dot-div [dots]
-  (mapv (fn [dot]  ; dot prop map {:classname :color, :style {:top :left} }
-          (let [style (:style dot)]
-            (dom/div #js {:id (:dot-id dot)
-                          :className (:classname dot)
-                          :style #js {:top (:top style) :left (:left style)}})))
-        dots))
 
 
 ; board is vec of vec.
@@ -179,9 +171,20 @@
     (map-indexed  ; create-dot at row i, within each row, different colors.
       (fn [row x] 
         (vec    ; inner index is ypos, and map over a list of color.
-          (map-indexed (partial create-dot row) (take board-size (rand-colors)))))
+          (map-indexed 
+            (partial create-dot row) (take board-size (rand-colors)))))
       (range board-size)  ; outer index is row, board-size.
       )))
+
+; given a row of dots prop map, ret a list of dom/div
+; JavaScript literal must use map or vector notation, so one more indirection
+(defn get-dot-div [dots]
+  (mapv (fn [dot]  ; dot prop map {:classname :color, :style {:top :left} }
+          (let [style (:style dot)]
+            (dom/div #js {:id (:dot-id dot)
+                          :className (:classname dot)
+                          :style #js {:top (:top style) :left (:left style)}})))
+        dots))
 
 ; ; create-dot and append to board div, concat new dot to state[col] list.
 (defn add-missing-dots-helper 
