@@ -6,8 +6,7 @@
     [jayq.core :refer [$ append ajax inner css $deferred when done 
                        resolve pipe on bind attr offset] :as jq]
     [jayq.util :refer [log]]
-    
-    ;[crate.core :as crate]
+    [sablono.core :as html :refer-macros [html]]
     [clojure.string :refer [join blank? replace-first]]
     [clojure.set :refer [union]]
     
@@ -222,22 +221,20 @@
 ; remove a dot by ($ele).remove, with some css animation.
 ; {:color :blue, :style {:top "-112px;", :left "23px;"}, :classname "dot levelish blue level-0"} 
 (defn remove-dot [{:keys [dot-id] :as dot}]
-  ; (go
-    (log "remove-dot " dot-id)
-    (let [$elem ($ dot-id)  ; select the dot
-          top (-> (top-pos-from-dot-elem $elem) reverse-board-position pos->coord)
-          trans (translate-top top)]
-      (css $elem {"-webkit-transition" "all 0.2s"})
-      (css $elem {"-webkit-transform"
-                  (str trans " scale3d(0.1,0.1,0.1)")
-                  "-moz-transform"
-                  (str "translate(0," (+ offscreen-offset top) "px) scale(0.1,0.1)")
-                  "-ms-transform"
-                  (str "translate(0," (+ offscreen-offset top) "px) scale(0.1,0.1)")})
-      ; wait animation
-      (<! (timeout 150))
-      (.remove ($ elem)))
-  )
+  (log "remove-dot by id " dot-id)
+  (let [$elem ($ dot-id)  ; select the dot
+        top (-> (top-pos-from-dot-elem $elem) reverse-board-position pos->coord)
+        trans (translate-top top)]
+    (css $elem {"-webkit-transition" "all 0.2s"})
+    (css $elem {"-webkit-transform"
+                (str trans " scale3d(0.1,0.1,0.1)")
+                "-moz-transform"
+                (str "translate(0," (+ offscreen-offset top) "px) scale(0.1,0.1)")
+                "-ms-transform"
+                (str "translate(0," (+ offscreen-offset top) "px) scale(0.1,0.1)")})
+    ; wait animation
+    (<! (timeout 150))
+    (.remove ($ elem))))
 
 ; remove dots by row
 (defn render-remove-dots-row-helper 

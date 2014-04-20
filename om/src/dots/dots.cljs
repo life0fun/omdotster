@@ -3,6 +3,8 @@
             [cljs.core.async :refer [put! <! chan]]
             [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
+            [sablono.core :as html :refer-macros [html]]
+
             [secretary.core :as secretary]
             [clojure.string :as string]
             [clojure.set :refer [union]]
@@ -43,8 +45,19 @@
 
 ; Two level of states. App has its own global state. Each component has its own state.
 ; cache hierarchy avoid name space collision and separation of global and component specific.
-; om/root [f value options] options map keys allowed in build.
+
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+; om/root [f value options] : value is either a tree of cljs data structure or an atom.
+
 ; om/build item/todo-item todos[] {:init-state {:comm comm} :fn (fn [todo] ())}
+; cursor should be an Om cursor onto the application state
+
+; om/build takes a component fn with state cursor.
+; om/component is a macro takes body and wrap into reify IRender to create component.
+; html/html render hiccup clojure template intto html.
+
+; dom/render can render html directly into react virtual dom !
+
 ; pattern: create chan in app, pass it to components as comm chan from comp to app.
 ; In this single page app, for simplify, we store everything in global app state.
 
@@ -261,15 +274,21 @@
   ))
 
 ; when start, render login screen component inside dots-game-container
+; args is either a tree of cljs data structure, or atom to data structure.
 (om/root login-component app-state
   {:target (.getElementById js/document "dots-game-container")})
 
+
+; om/build takes a component fn with state cursor.
+; om/component is a macro takes body and wrap into reify IRender to create component.
+; html/html render hiccup clojure template to html,
 (dom/render
-  (dom/div nil
-    (dom/p nil "Dots Game")
-    (dom/p nil
-      (dom/a #js {:href "http://github.com/dotster"}))
-    (dom/p nil
-      #js ["Part of"
-           (dom/a #js {:href "http://dots.com"} "dots board")]))
+  (html/html
+    [:div
+      [:p "Dots Game"]
+      [:p
+        [:a {:href "http://github.com/dotster"} "dotster"]]
+      [:p
+        [:a {:href "http://dotster.com"} "dotster"]]
+    ])
   (.getElementById js/document "info"))

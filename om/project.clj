@@ -10,7 +10,7 @@
                  ;[com.facebook/react "0.9.0.1"] contains react/externs/react.js
                  [om "0.5.3"]
                  [secretary "0.4.0"]
-                 [crate "0.2.4"]
+                 [sablono "0.2.15"]
                  [jayq "2.4.0"]
                  [com.cemerick/piggieback "0.0.5"]
                 ]
