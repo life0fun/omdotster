@@ -18,7 +18,7 @@
             [dots.board :refer [create-board render-screen score-screen  render-score
                         render-view render-position-updates render-remove-dots
                         render-dot-chain-update erase-dot-chain transition-dot-chain-state
-                        get-dot-div dot-colors dot-color dot-index add-missing-dots
+                        dot-colors dot-color dot-index add-missing-dots
                         flash-color-on flash-color-off
                         dot-positions-for-focused-color] :as board]
             )
@@ -225,12 +225,11 @@
   [app]
   (let [board (:board app)
         dots (vec (mapcat #(mapv (comp vec :elem) %) board))
-        ;dots (mapv :elem %) (first board))  XXX need convert to vec
+        ; dots (mapv :elem %) (first board))  XXX need convert to vec
         ; dots [[:div {:class "dot levelish purple level-0"}]
         ;         [:div {:class "dot levelish blue level-1"}]]
        ]
-    (log "make-dots-board " (vec dots))
-    (vec dots)))
+    dots))
 
 ; ; board screen with each dot a div 
 ; (defn board-screen [{:keys [board screen dot-chain] :as app}]

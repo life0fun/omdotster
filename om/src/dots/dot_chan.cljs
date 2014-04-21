@@ -10,7 +10,7 @@
             [jayq.core :refer [$ append ajax inner css $deferred when done 
                                resolve pipe on bind attr offset] :as jq]
             [jayq.util :refer [log]]
-            [dots.board :refer [create-board render-screen score-screen render-score
+            [dots.board :refer [board-size create-board render-screen score-screen render-score
                         render-view render-position-updates render-remove-dots
                         render-dot-chain-update erase-dot-chain transition-dot-chain-state
                         dot-colors dot-color dot-index add-missing-dots
@@ -175,7 +175,6 @@
   [board dot-chain draw-chan board-offset]
   (go-loop [dot-chain dot-chain]
     ;(render-dot-chain-update last-state state)
-    (log "go-loop get-dots-to-remove dot-chain " dot-chain)
     (if (dot-chain-cycle? dot-chain)
       (let [color (dot-color board (first dot-chain))] ; color of first dot in dot-chain
         (flash-color-on color) ; add flash class to .board-area
@@ -255,18 +254,19 @@
       ;(render-position-updates state)
       (<! (timeout 300))
       ;(render-position-updates state)
-      (add-missing-dots board exclude-color)
+      ; (add-missing-dots board exclude-color)
       (log "game loop go-loop " dot-chain exclude-color)
       (let [[chan-value ch]
               (alts! [(get-dots-to-remove board dot-chain draw-chan board-offset) 
                       game-over-timeout])]
         (if (= ch game-over-timeout)
           board   ; game end, return board upon time out
-          (let [{:keys [board dot-chain exclude-color]} chan-value]
-            (log "game loop get-dots-to-remove dot-chain " dot-chain)  ; dot-chain = [[0 4] [1 4]]
+          (let [{:keys [board dot-chain exclude-color]} chan-value
+                r-dot-chain (map (fn [[xpos ypos]] [xpos (- (dec board-size) ypos)]) dot-chain)]
+            (log "game loop get-dots-to-remove dot-chain " dot-chain " " r-dot-chain)  ; dot-chain = [[0 4] [1 4]]
             (when (< 1 (count dot-chain))
               (om/transact! app :board
-                (fn [old-board] (render-remove-dots board dot-chain))))
+                (fn [old-board] (render-remove-dots board r-dot-chain exclude-color)))) ; dot pos reverse
             (recur board dot-chain exclude-color)
           ))
         )

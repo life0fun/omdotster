@@ -153,7 +153,7 @@
   (let [style (starting-dot [xpos ypos] color)
         classname (str "dot levelish " (name color) " level-" ypos)
         dot {:color color :style style :classname classname :dot-id (str xpos "-" ypos)
-             :elem (vec [:div {:class classname :style style}])
+             :elem (vec [:div {:id (str xpos "-" ypos) :class classname :style style}])
             }
         ]
     (log "create-dot x: " xpos " y: " ypos " " style " " color " " (:elem dot))
@@ -176,28 +176,20 @@
       (range board-size)  ; outer index is row, board-size.
       )))
 
-; given a row of dots prop map, ret a list of dom/div
-; JavaScript literal must use map or vector notation, so one more indirection
-(defn get-dot-div [dots]
-  (mapv (fn [dot]  ; dot prop map {:classname :color, :style {:top :left} }
-          (let [style (:style dot)]
-            (dom/div #js {:id (:dot-id dot)
-                          :className (:classname dot)
-                          :style #js {:top (:top style) :left (:left style)}})))
-        dots))
 
-; ; create-dot and append to board div, concat new dot to state[col] list.
+; this fn gets called for each col in the board. for col missing dots, create dot.
+; when dot removed from col, 
 (defn add-missing-dots-helper 
   [col-idx col exclude-color]
+  (log "add-missing-dots-helper " col-idx " " (count col) " " (map :color col))
   (if (= (count col) board-size)
     col
-    (let [new-dots (map create-dot
+    (let [new-dots (map create-dot   ; create-dot xpos ypos color
                         (repeat col-idx)
                         (repeat offscreen-dot-position)
                         (take (- board-size (count col)) (rand-colors exclude-color)))]
       (add-dots-to-board new-dots)
       (vec (concat col new-dots))
-      col
     ))
   )
 
@@ -224,8 +216,7 @@
 ; remove a dot by ($ele).remove, with some css animation.
 ; {:color :blue, :style {:top "-112px;", :left "23px;"}, :classname "dot levelish blue level-0"} 
 (defn remove-dot [{:keys [dot-id] :as dot}]
-  (log "remove-dot by id " dot-id)
-  (let [$elem ($ dot-id)  ; select the dot
+  (let [$elem ($ dot-id)
         top (-> (top-pos-from-dot-elem $elem) reverse-board-position pos->coord)
         trans (translate-top top)]
     (css $elem {"-webkit-transition" "all 0.2s"})
@@ -237,6 +228,7 @@
                 (str "translate(0," (+ offscreen-offset top) "px) scale(0.1,0.1)")})
     ; wait animation
     (<! (timeout 150))
+    (log "remove-dot by id " dot-id)
     (.remove ($ elem))))
 
 ; remove dots by row
@@ -244,6 +236,7 @@
   [dot-chain-set col]
   (let [dots-to-remove (keep-indexed #(if (dot-chain-set %1) %2) col)
         next_col     (keep-indexed #(if (not (dot-chain-set %1)) %2) col)]
+    (log "render-remove-dots-row-helper " dot-chain-set " col " col " dots-to-remove " dots-to-remove)
     (doseq [dot dots-to-remove]
       (remove-dot dot))
     (vec next_col)))
@@ -258,13 +251,15 @@
 ;                                 (state :board))]
 ;     (assoc state :board (vec next_board))))
 
-(defn render-remove-dots [board dot-chain]
+; get a dots to be removed in dot chain, and ret new state for board screen.
+(defn render-remove-dots [board dot-chain exclude-color]
   (let [dot-chain-groups  (group-by first dot-chain) ; {2 [[2 0]], 3 [[3 0]]}
         next_board (map-indexed #(render-remove-dots-row-helper
                                     (set (map last (get dot-chain-groups %1))) 
                                     %2)
-                                board)]
-    (log "render-remove-dots next board " (vec next_board))
+                                board)
+        next_board (add-missing-dots next_board exclude-color)]
+    (log "render-remove-dots next board " dot-chain-groups)
     (vec next_board)))
 
 
