@@ -19,8 +19,7 @@
 ; if you provide string, you got minification exception.
 
 ;
-; crate/html is used to generate html for the UI, and attach to div
-; 1. crate-dot {:color color :elem (crate/html (... [xpos ypos] color))}
+; 1. create-dot {:color color :elem (crate/html (... [xpos ypos] color))}
 ; 2. render-screen for .dot-game-container
 ; 3. render-view for (:board state), -> [:div.dots-game [:div.board ...]]
 ; 4. render dot chain update for .chain-line an d.dot-highlights
@@ -131,7 +130,12 @@
 (defn at-correct-postion? [dot [_ expected-top]]
   (= expected-top (top-pos-from-dot-elem ($ (dot :elem)))))
 
+;; ------------------ css style and transition ------------------------------
+(defn translate-top [top]
+  (str "translate3d(0," (+ offscreen-offset top) "px,0) "))
 
+
+; ------------------ create dots and board ------------------------------
 ; <div class="dot levelish yellow level-5" style="top:-112px; left: 23px;"></div>
 ; <div class="dot levelish blue level-4" style="top:-112px; left: 68px;"></div>
 ; <div class="dot levelish green level-0 level-0-from0" style="top:-112px; left: 248px;"></div>
@@ -145,8 +149,6 @@
         style {:top (str start-top "px;") :left (str left "px;")}]
     style))
 
-; (defn create-dot [xpos ypos color]
-;   {:color color :elem (crate/html (starting-dot [xpos ypos] color))})
 
 ; ret a dot prop map where style is a nested map of {:top -2px :left 1px}
 (defn create-dot [xpos ypos color]
@@ -154,44 +156,50 @@
         classname (str "dot levelish " (name color) " level-" ypos)
         dot {:color color :style style :classname classname :dot-id (str xpos "-" ypos)
              :elem (vec [:div {:id (str xpos "-" ypos) :class classname :style style}])
+             :removed false
             }
         ]
     (log "create-dot x: " xpos " y: " ypos " " style " " color " " (:elem dot))
     dot))
 
 
-; board is vec of vec.
+; board is apply vector on top of another apply vector.
 ; (def world (apply vector
 ;   (map (fn [_] (apply vector (map (fn [_] (ref (struct cell 0 0))) (range dim))))
 ;        (range dim))))
 ; <div class="dot levelish yellow level-5" style="top:-112px; left: 23px;"></div>
 ; <div class="dot levelish blue level-4" style="top:-112px; left: 68px;"></div>
 (defn create-board [] 
-  (vec
+  (vec  ; outer vector.
     (map-indexed  ; create-dot at row i, within each row, different colors.
       (fn [row x] 
-        (vec    ; inner index is ypos, and map over a list of color.
+        (vec    ; inner vector index is ypos, and map over a list of color.
           (map-indexed 
             (partial create-dot row) (take board-size (rand-colors)))))
       (range board-size)  ; outer index is row, board-size.
       )))
 
 
-; this fn gets called for each col in the board. for col missing dots, create dot.
-; when dot removed from col, 
+; iterate each col/x-pos of board, add missing dots to the head col, y-pos = 0.
+; note we re-create all dots so we get proper x/y co-ordinate with existing color.
 (defn add-missing-dots-helper 
   [col-idx col exclude-color]
-  (log "add-missing-dots-helper " col-idx " " (count col) " " (map :color col))
-  (if (= (count col) board-size)
+  (log "add-missing-dots-helper col-idx " col-idx " " (map (juxt :color :removed) col))
+  (if (= (count (remove #(:removed %) col)) board-size)
     col
-    (let [new-dots (map create-dot   ; create-dot xpos ypos color
+    (let [missing (- board-size (count (remove #(:removed %) col)))
+          new-dots (map create-dot   ; create-dot xpos ypos color
                         (repeat col-idx)
                         (repeat offscreen-dot-position)
-                        (take (- board-size (count col)) (rand-colors exclude-color)))]
+                        (take missing (rand-colors exclude-color)))
+          ; new dots at the top of the col
+          new-col (vec (concat new-dots col))
+          new-col (map-indexed #(create-dot col-idx %1 (:color %2)) new-col)
+         ]
       (add-dots-to-board new-dots)
-      (vec (concat col new-dots))
-    ))
-  )
+      (log "add-missing-dots new-col " (map #((juxt :color :dot-id :removed) %) new-col))
+      new-col
+    )))
 
 ; given a state map, repopulate missing dots in board and reset excl color.
 ; (defn add-missing-dots
@@ -208,9 +216,31 @@
           #(add-missing-dots-helper %1 %2 exclude-color) ; col-index and a col of dots
           board)))
 
-;; ------------------ css style and transition ------------------------------
-(defn translate-top [top]
-  (str "translate3d(0," (+ offscreen-offset top) "px,0) "))
+
+;; ------------------------------------------------
+; dot-chain call this fn to remove dots in dot-chain. ret updated board.
+(defn render-remove-dots [board dot-chain exclude-color]
+  (let [dot-chain-groups  (group-by first dot-chain) ; {2 [[2 0]], 3 [[3 0]]}
+        next_board (map-indexed #(render-remove-dots-row-helper
+                                    (set (map last (get dot-chain-groups %1))) 
+                                    %2)
+                                board)
+        next_board (add-missing-dots next_board exclude-color)]
+    (log "render-remove-dots next board " dot-chain-groups)
+    (vec next_board)))
+
+
+; iterate each col, dot-chain-set contains a set of dots to be removed.
+; return new col with removed dots, and add missing dots will fill it.
+(defn render-remove-dots-row-helper 
+  [dot-chain-set col]
+  (let [dots-to-remove (keep-indexed #(if (dot-chain-set %1) %2) col)
+        ;next_col  (keep-indexed #(if (not (dot-chain-set %1)) %2 (assoc %2 :removed true)) col)]
+        next_col  (keep-indexed #(if (not (dot-chain-set %1)) %2) col)]
+    (log "render-remove-dots-row-helper " dot-chain-set " dots-to-remove " (map #(juxt :color :dot-id) dots-to-remove))
+    (doseq [dot dots-to-remove]
+      (remove-dot dot))
+    (vec next_col)))
 
 
 ; remove a dot by ($ele).remove, with some css animation.
@@ -230,37 +260,6 @@
     (<! (timeout 150))
     (log "remove-dot by id " dot-id)
     (.remove ($ elem))))
-
-; remove dots by row
-(defn render-remove-dots-row-helper 
-  [dot-chain-set col]
-  (let [dots-to-remove (keep-indexed #(if (dot-chain-set %1) %2) col)
-        next_col     (keep-indexed #(if (not (dot-chain-set %1)) %2) col)]
-    (log "render-remove-dots-row-helper " dot-chain-set " col " col " dots-to-remove " dots-to-remove)
-    (doseq [dot dots-to-remove]
-      (remove-dot dot))
-    (vec next_col)))
-
-
-; just update state board with new board
-; (defn render-remove-dots [state dot-chain]
-;   (let [dot-chain-groups  (group-by first dot-chain)
-;         next_board (map-indexed #(render-remove-dots-row-helper
-;                                     (set (map last (get dot-chain-groups %1))) 
-;                                     %2)
-;                                 (state :board))]
-;     (assoc state :board (vec next_board))))
-
-; get a dots to be removed in dot chain, and ret new state for board screen.
-(defn render-remove-dots [board dot-chain exclude-color]
-  (let [dot-chain-groups  (group-by first dot-chain) ; {2 [[2 0]], 3 [[3 0]]}
-        next_board (map-indexed #(render-remove-dots-row-helper
-                                    (set (map last (get dot-chain-groups %1))) 
-                                    %2)
-                                board)
-        next_board (add-missing-dots next_board exclude-color)]
-    (log "render-remove-dots next board " dot-chain-groups)
-    (vec next_board)))
 
 
 ; update dot by adding css class. 

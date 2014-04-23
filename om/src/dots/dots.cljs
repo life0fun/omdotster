@@ -290,7 +290,7 @@
     
     om/IRenderState
     (render-state [_ {:keys [comm]}]  ; render on every change
-      (log "board component rendering screen: " screen)
+      (log "board component IRenderState: " screen)
       (board-screen app)
       )
   ))
