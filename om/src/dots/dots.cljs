@@ -27,18 +27,15 @@
   (:import [goog History]
            [goog.history EventType]))
 
-;
-; when creating React component, if it only contains primitive elements,
-; just use dom/div, dom/input, dom/a, etc; if nested, then build, build-all
-; if nested React components, then need to om/build the nested components.
-; (apply dom/ul #js {:id "x:} om/build-all dot dots {})
-;
 
-; every change of app-state causes virtual DOM re-rendering !
+; change of app-state causes virtual DOM re-rendering, and did-update will be called !
 ; om/transact! ([cursor korks f tag])
 ; cursor is cursor/path in to app-state, 
 ; korks is an optional key or sequence of keys to access in the cursor
 ; tag is optional :keyword or [:keyword values]
+
+; cursor is IRef to app-state. you can not update cursor inside hook callback.
+; don't do too much callback handler, use (go (put chan evet)...) put your logic back together!
 
 ; reify IRender must ret an Om component, a React component, or a some value that 
 ; React knows how to render. otherwise you get Minified exception.
@@ -51,25 +48,30 @@
 
 ; om/build item/todo-item todos[] {:init-state {:comm comm} :fn (fn [todo] ())}
 ; cursor should be an Om cursor onto the application state
-
 ; om/build takes a component fn with state cursor.
 ; om/component is a macro takes body and wrap into reify IRender to create component.
 ; html/html render hiccup clojure template intto html.
 
 ; dom/render can render html directly into react virtual dom !
 
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ; pattern: create chan in app, pass it to components as comm chan from comp to app.
 ; In this single page app, for simplify, we store everything in global app state.
 
 ; when vritual dom re-rendering, all components attached to the DOM re-rendered. 
 ; even though no change on the component. Hence, do not put no render logic there.
+; re-render will be triggered by update to states, after update re-rendering, board 
+; is already mounted, so only IWillUpdate and IDidUpdate will be called.
 
-; within render phase, app state cursor is open to mutate.
-; outside render phase, i.e, fn runs inside go-loop block, om/update or @cursor. 
 
 ; Do not use traditional blocking call to get the return value.!!!!
 ; Always use chan to connect different components. read chan inside go or go-loop block.
 ; In IWillMount, (go-loop (let [evt (<! chan)] (handle-event evt)))
+
+; event handler
+; 1. install all event handlers for the component when mounted to DOM.
+; 2. or install in-place when render each dom element in render-state.
+
 
 (enable-console-print!)
 
@@ -106,7 +108,6 @@
   (fn [e] (secretary/dispatch! (.-token e))))
 
 (.setEnabled history true)
-
 
 ;; =============================================================================
 (defn handle-keydown [e app owner]
@@ -181,6 +182,11 @@
   (reify
     om/IWillMount   ; called once upon component mount to DOM.
     (will-mount [_]
+      (log "login will-mount."))
+
+    om/IDidMount
+    (did-mount [this]
+      (log "login mount " screen)
       (when (= screen :newgame)
         (let [login-chan (chan)]  ; create chan upon mount 
           (om/set-state! owner :login-chan login-chan)
@@ -204,7 +210,7 @@
     om/IDidUpdate
     (did-update [_ _ _]
       (let [ms (- (.valueOf (now)) (.valueOf render-start))]
-        (log "did-update " ms)))
+        (log "login did-update " ms)))
     
     om/IRenderState
     (render-state [_ {:keys [login-chan]}]  ; render on every change
@@ -266,31 +272,41 @@
     ]))
 
 ; fn for React component for board-component and render update.
+; pass app state cursor to game loop where app state will be deref and updated
 (defn board-component 
   [{:keys [board dot-chain exclude-color screen draw-chan board-offset] :as app} owner]
   (reify
-    om/IWillMount   ; called once upon component mount to DOM.
-    (will-mount [_]
-      (go-loop []
-        ; (log "mounted app-state " @app)
-        ; pass app state cursor to game loop where app state will be loop updated.
-        ; you can also create a chan, pass to game loop, where chan got filled,
-        ; and read game loop state from chan, and update here.
-        (dot-chan/game-loop app)
-      ))
+    om/InitState
+    (init-state [_]    ; init component local state
+      (log "board init-state")
+      {:dot-chain []})
 
+    ; called once when element is mounted to DOM.
+    om/IWillMount
+    (will-mount [_]
+      (log "board will-mount, install event handler go-loop"))
+
+    om/IDidMount
+    (did-mount [this]
+      (log "board did mount")
+      (dot-chan/game-loop app))
+
+    ; after mount, any state update will trigger re-render, invoke DidUpdate 
     om/IWillUpdate
-    (will-update [_ _ _] 
+    (will-update [_ _ _]
+      (log "board will update") 
       (set! render-start (now)))  ; update render-start
     
     om/IDidUpdate
     (did-update [_ _ _]
       (let [ms (- (.valueOf (now)) (.valueOf render-start))]
-        (log "did-update " ms)))
+        (log "board did-update " ms)
+        (dot-chan/game-loop app)
+        ))
     
     om/IRenderState
     (render-state [_ {:keys [comm]}]  ; render on every change
-      (log "board component IRenderState: " screen)
+      (log "board render-state: " screen)
       (board-screen app)
       )
   ))

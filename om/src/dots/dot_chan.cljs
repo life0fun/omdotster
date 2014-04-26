@@ -235,26 +235,21 @@
 ; game loop on each draw gesture. when gesture done, draw dots in draw-chan stored in
 ; state map :dot-chain. remove those dots, and recur by add missing dots.
 (defn game-loop [app]
-  ; not sure why I can not destructure app-state ?
-  (let [app-state @app
-        board (:board app-state)
-        dot-chain (:dot-chain app-state)
-        exclude-color (:exclude-color app-state)
-        ;draw-chan (:draw-chan app-state)
-        draw-chan (draw-chan "body")
-        board-offset (:board-offset app-state)
-        game-over-timeout (game-timer 600)
-        board-offset ((juxt :left :top) (offset ($ ".dots-game .board"))) 
-       ]
-    ; same name local var shadow and start loop recur
-    (go-loop [board board
-              dot-chain dot-chain 
-              exclude-color exclude-color]
+  ; go block multi-wait until draw chan returns dot-chain 
+  (go
+    (let [app-state @app
+          board (:board app-state)
+          dot-chain (:dot-chain app-state)
+          exclude-color (:exclude-color app-state)
+          ;draw-chan (:draw-chan app-state)
+          draw-chan (draw-chan "body")
+          board-offset (:board-offset app-state)
+          game-over-timeout (game-timer 600)
+          board-offset ((juxt :left :top) (offset ($ ".dots-game .board"))) 
+         ]
       ;(render-score state)
       ;(render-position-updates state)
       (<! (timeout 300))
-      ;(render-position-updates state)
-      ; (add-missing-dots board exclude-color)
       (log "game loop go-loop " dot-chain exclude-color)
       (let [[chan-value ch]
               (alts! [(get-dots-to-remove board dot-chain draw-chan board-offset) 
@@ -262,12 +257,12 @@
         (if (= ch game-over-timeout)
           board   ; game end, return board upon time out
           (let [{:keys [board dot-chain exclude-color]} chan-value
-                r-dot-chain (map (fn [[xpos ypos]] [xpos (- (dec board-size) ypos)]) dot-chain)]
+                r-dot-chain (map (fn [[xpos ypos]] [xpos (- (dec board-size) ypos)]) dot-chain)
+                newboard (render-remove-dots board r-dot-chain exclude-color)]
             (log "game loop get-dots-to-remove dot-chain " dot-chain " " r-dot-chain)  ; dot-chain = [[0 4] [1 4]]
-            (when (< 1 (count dot-chain))
-              (om/transact! app :board
-                (fn [old-board] (render-remove-dots board r-dot-chain exclude-color)))) ; dot pos reverse
-            (recur board dot-chain exclude-color)
+            ; (when (< 1 (count dot-chain))
+            (om/transact! app :board
+              (fn [old-board] newboard)) ; dot pos reverse
           ))
         )
       )

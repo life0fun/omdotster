@@ -159,7 +159,7 @@
              :removed false
             }
         ]
-    (log "create-dot x: " xpos " y: " ypos " " style " " color " " (:elem dot))
+    ;(log "create-dot x: " xpos " y: " ypos " " style " " color " " (:elem dot))
     dot))
 
 
@@ -184,7 +184,6 @@
 ; note we re-create all dots so we get proper x/y co-ordinate with existing color.
 (defn add-missing-dots-helper 
   [col-idx col exclude-color]
-  (log "add-missing-dots-helper col-idx " col-idx " " (map (juxt :color :removed) col))
   (if (= (count (remove #(:removed %) col)) board-size)
     col
     (let [missing (- board-size (count (remove #(:removed %) col)))
@@ -197,7 +196,7 @@
           new-col (map-indexed #(create-dot col-idx %1 (:color %2)) new-col)
          ]
       (add-dots-to-board new-dots)
-      (log "add-missing-dots new-col " (map #((juxt :color :dot-id :removed) %) new-col))
+      (log "add-missing-dots new-col " col-idx "  " (map #((juxt :color :dot-id :removed) %) new-col))
       new-col
     )))
 
@@ -235,9 +234,8 @@
 (defn render-remove-dots-row-helper 
   [dot-chain-set col]
   (let [dots-to-remove (keep-indexed #(if (dot-chain-set %1) %2) col)
-        ;next_col  (keep-indexed #(if (not (dot-chain-set %1)) %2 (assoc %2 :removed true)) col)]
         next_col  (keep-indexed #(if (not (dot-chain-set %1)) %2) col)]
-    (log "render-remove-dots-row-helper " dot-chain-set " dots-to-remove " (map #(juxt :color :dot-id) dots-to-remove))
+    ;(log "render-remove-dots-row-helper " dot-chain-set)
     (doseq [dot dots-to-remove]
       (remove-dot dot))
     (vec next_col)))
@@ -245,7 +243,7 @@
 
 ; remove a dot by ($ele).remove, with some css animation.
 ; {:color :blue, :style {:top "-112px;", :left "23px;"}, :classname "dot levelish blue level-0"} 
-(defn remove-dot [{:keys [dot-id] :as dot}]
+(defn remove-dot [{:keys [dot-id color] :as dot}]
   (let [$elem ($ dot-id)
         top (-> (top-pos-from-dot-elem $elem) reverse-board-position pos->coord)
         trans (translate-top top)]
@@ -258,7 +256,7 @@
                 (str "translate(0," (+ offscreen-offset top) "px) scale(0.1,0.1)")})
     ; wait animation
     (<! (timeout 150))
-    (log "remove-dot by id " dot-id)
+    (log "remove-dot by id " dot-id " color " color)
     (.remove ($ elem))))
 
 
