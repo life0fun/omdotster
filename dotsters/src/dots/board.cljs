@@ -114,7 +114,6 @@
 ; {:board [[{:color :blue :ele #<[objec]>}]]}
 (defn dot-color [{:keys [board]} dot-pos]
   (let [color (-> board (get-in dot-pos) :color)]
-    (log "dot-color " dot-pos " " color)
     color))
 
 ; ------------------ dot pos destruct to x, y -----------------------------
@@ -219,6 +218,10 @@
     [:div {:style style :class (str "dot-highlight " (name color))}]))
 
 
+; render clicked dots inside div dot-highlights, (o)
+;   <div style="top:158px; left: 158px;" class="dot-highlight green"></div>
+; render dot-chain in chain-line div.  (o)==(o)
+;   <div style="width: 23px;height: 4px;top: 166px;left: 45px;" class="line red horiz"></div>
 (defn render-dot-chain-update 
   [last-state state]
   (let [last-dot-chain (:dot-chain last-state)
@@ -228,6 +231,7 @@
     (when (and (not= last-chain-length chain-length) (pos? chain-length))
       (let [color (dot-color state (first dot-chain))
             length-diff            (- chain-length last-chain-length)]
+        (log "render-dot-chain-update chain-len " chain-length " lendiff " length-diff)
         (if (< 1 chain-length)
           (if (pos? length-diff)
             (append ($ ".dots-game .chain-line")

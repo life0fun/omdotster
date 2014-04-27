@@ -300,7 +300,7 @@
     om/IDidUpdate
     (did-update [_ _ _]
       (let [ms (- (.valueOf (now)) (.valueOf render-start))]
-        (log "board did-update " ms)
+        (log "board did-update " ms "ms")
         (dot-chan/game-loop app)
         ))
     

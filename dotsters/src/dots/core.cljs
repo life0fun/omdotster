@@ -176,7 +176,7 @@
             app-state ;; leave game loop
             (recur  ; dots in draw-chan get maps to vec pos index and store in :dot-chain in state map
               (let [{:keys [dot-chain exclude-color]} draw-state]
-                (log "game loop recur " dot-chain)  ; dot-chain = [[0 4] [1 4]]
+                (log "game loop recur dot-chain " dot-chain)  ; dot-chain = [[0 4] [1 4]]
                 (if (< 1 (count dot-chain))
                   (-> app-state
                       (render-remove-dots dot-chain)

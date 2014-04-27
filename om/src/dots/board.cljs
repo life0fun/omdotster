@@ -108,7 +108,7 @@
 (defn dot-color [board [xpos ypos]]
   (let [dot-pos [xpos (- (dec board-size) ypos)]
         color (-> board (get-in dot-pos) :color)]
-    (log "dot-color " dot-pos color)
+    (log "dot-color " dot-pos color (get-in board [xpos]))
     color))
 
 ; ------------------ dot pos destruct to x, y -----------------------------
@@ -145,7 +145,6 @@
 ;     [:div {:class (str "dot levelish " (name color)) :style style}]))
 (defn starting-dot [[top-pos _] color]
   (let [[start-top left] (pos->corner-coord [top-pos offscreen-dot-position])
-        ;style (str "top:" start-top "px; left: " left "px;")
         style {:top (str start-top "px;") :left (str left "px;")}]
     style))
 
@@ -191,9 +190,10 @@
                         (repeat col-idx)
                         (repeat offscreen-dot-position)
                         (take missing (rand-colors exclude-color)))
-          ; new dots at the top of the col
+          ; new dots at the top of the col.
+          ; XXX nwe col must be vector.
           new-col (vec (concat new-dots col))
-          new-col (map-indexed #(create-dot col-idx %1 (:color %2)) new-col)
+          new-col (vec (map-indexed #(create-dot col-idx %1 (:color %2)) new-col))
          ]
       (add-dots-to-board new-dots)
       (log "add-missing-dots new-col " col-idx "  " (map #((juxt :color :dot-id :removed) %) new-col))
@@ -290,8 +290,9 @@
 
 
 ; double line in background in style when dots chained
-(defn chain-element-templ 
+(defn chain-element-templ
   [last-pos pos color]
+  (log "chain-element-templ " last-pos pos color)
   (let [[top1 left1] (pos->center-coord last-pos)
         [top2 left2] (pos->center-coord pos)
         length (- grid-unit-size dot-size)
@@ -311,35 +312,36 @@
         style (str "top:" top "px; left: " left "px;")]
     [:div {:style style :class (str "dot-highlight " (name color))}]))
 
+; render clicked dots inside div dot-highlights, (o)
+;   <div style="top:158px; left: 158px;" class="dot-highlight green"></div>
+; render dot-chain line in chain-line div.  (o)==(o)
+;   <div style="width: 23px;height: 4px;top: 166px;left: 45px;" class="line red horiz"></div>
 (defn render-dot-chain-update 
-  [last-state state]
-  (let [last-dot-chain (:dot-chain last-state)
-        dot-chain      (:dot-chain state)
-        last-chain-length (count last-dot-chain)
+  [board last-dot-chain dot-chain]
+  (let [last-chain-length (count last-dot-chain)
         chain-length      (count dot-chain)]
     (when (and (not= last-chain-length chain-length) (pos? chain-length))
-      (let [color (dot-color state (first dot-chain))
+      (log "render-dot-chain-update first dot " (first dot-chain) " " dot-chain)
+      (let [color (dot-color board (first dot-chain))
             length-diff (- chain-length last-chain-length)]
+        (log "render-dot-chain-update chain-length " chain-length " diff " length-diff " dot-chain " dot-chain)
         (if (< 1 chain-length)
           (if (pos? length-diff)
-            ; (append ($ ".dots-game .chain-line")
-            ;         (crate/html (chain-element-templ
-            ;                      (last (butlast dot-chain))
-            ;                      (last dot-chain)
-            ;                      color)))
+            ; render dot-chain line in chain-line div.  (o)==(o)
+            (append ($ ".dots-game .chain-line")
+                    (html/html (chain-element-templ
+                                 (last (butlast dot-chain))
+                                 (last dot-chain)
+                                 color)))
             (.remove (.last ($ ".dots-game .chain-line .line"))))
           (inner ($ ".dots-game .chain-line") ""))
-        ; (append ($ ".dots-game .dot-highlights")
-        ;         (crate/html (dot-highlight-templ (last dot-chain) color))))
-      ))))
+        ; render (o) within div dot-highlights
+        (append ($ ".dots-game .dot-highlights")
+                (html/html (dot-highlight-templ (last dot-chain) color)))
+      ))
+    ))
 
 
-; (defn dot-follows? [state prev-dot cur-dot]
-;   (and (not= prev-dot cur-dot)
-;        (or (nil? prev-dot)
-;            (and
-;             (= (dot-color state prev-dot) (dot-color state cur-dot))
-;             (= 1 (apply + (mapv (comp abs -) cur-dot prev-dot)))))))
 (defn dot-follows? [board prev-dot cur-dot]
   (and (not= prev-dot cur-dot)
        (or (nil? prev-dot)

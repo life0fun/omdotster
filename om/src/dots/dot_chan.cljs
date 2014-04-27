@@ -173,8 +173,10 @@
 ; when this ret, one draw gesture done, draw-chan :drawend, and all draw dots in :dot-chain in state map.
 (defn get-dots-to-remove   ; ret state map that contains :dot-chain
   [board dot-chain draw-chan board-offset]
-  (go-loop [dot-chain dot-chain]
-    ;(render-dot-chain-update last-state state)
+  (go-loop [last-dot-chain nil
+            dot-chain dot-chain]
+    ; render clicked dots in dot-chain with 
+    (render-dot-chain-update board last-dot-chain dot-chain)
     (if (dot-chain-cycle? dot-chain)
       (let [color (dot-color board (first dot-chain))] ; color of first dot in dot-chain
         (flash-color-on color) ; add flash class to .board-area
@@ -198,9 +200,11 @@
              :exclude-color exclude-color}
           )
           (recur ; recur read :draw msg from draw-chan and conj to :dot-chain in state map.
+            dot-chain
             (if-let [dot-pos (board/dot-index board-offset point)]
-              (transition-dot-chain-state board dot-chain dot-pos))
-              dot-chain))))))
+              (transition-dot-chain-state board dot-chain dot-pos)
+              dot-chain)
+            ))))))
 
 ; game timer recur read timeout-chan until count-down zero
 (defn game-timer [seconds]
@@ -250,7 +254,7 @@
       ;(render-score state)
       ;(render-position-updates state)
       (<! (timeout 300))
-      (log "game loop go-loop " dot-chain exclude-color)
+      (log "game loop go-loop dot-chain " dot-chain " exclude-color " exclude-color)
       (let [[chan-value ch]
               (alts! [(get-dots-to-remove board dot-chain draw-chan board-offset) 
                       game-over-timeout])]
