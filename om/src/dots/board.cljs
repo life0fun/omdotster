@@ -6,13 +6,16 @@
     [jayq.core :refer [$ append ajax inner css $deferred when done 
                        resolve pipe on bind attr offset] :as jq]
     [jayq.util :refer [log]]
-    [sablono.core :as html :refer-macros [html]]
+    [sablono.core :as html :refer-macros [html render]]
     [clojure.string :refer [join blank? replace-first]]
     [clojure.set :refer [union]]
     
     [om.dom :as dom :include-macros true])
   (:require-macros [cljs.core.async.macros :as m :refer [go go-loop alt!]]))
 
+
+; sablono maps hiccup [:div] to React's (dom/div), 
+; use render to get render string. 
 
 ; when creating dom/div with style, style takes a map with keys, not string
 ; (dom/div #js {:className "dot" :style #js {:top "-112px" :left "158px"}}
@@ -108,7 +111,7 @@
 (defn dot-color [board [xpos ypos]]
   (let [dot-pos [xpos (- (dec board-size) ypos)]
         color (-> board (get-in dot-pos) :color)]
-    (log "dot-color " dot-pos color (get-in board [xpos]))
+    (log "dot-color " dot-pos color)
     color))
 
 ; ------------------ dot pos destruct to x, y -----------------------------
@@ -309,7 +312,10 @@
 (defn dot-highlight-templ 
   [pos color]
   (let [[top left] (pos->corner-coord pos)
-        style (str "top:" top "px; left: " left "px;")]
+        ; style (str "top:" "-112 px; left: " left "px;")
+        style {:top (str top "px") :left (str left "px")}
+        ]
+    (log "highlight templ top " top " left " left)
     [:div {:style style :class (str "dot-highlight " (name color))}]))
 
 ; render clicked dots inside div dot-highlights, (o)
@@ -321,10 +327,14 @@
   (let [last-chain-length (count last-dot-chain)
         chain-length      (count dot-chain)]
     (when (and (not= last-chain-length chain-length) (pos? chain-length))
-      (log "render-dot-chain-update first dot " (first dot-chain) " " dot-chain)
       (let [color (dot-color board (first dot-chain))
-            length-diff (- chain-length last-chain-length)]
-        (log "render-dot-chain-update chain-length " chain-length " diff " length-diff " dot-chain " dot-chain)
+            length-diff (- chain-length last-chain-length)
+            hilit (html/html (dot-highlight-templ (last dot-chain) color))
+            hilitstr (html/render hilit)
+            ]
+        (log "render-dot-chain-update chain-length " chain-length " diff " length-diff 
+             "first " (first dot-chain) " last " (last dot-chain) " color " color
+             " hilit " hilit " dot-chain " dot-chain)
         (if (< 1 chain-length)
           (if (pos? length-diff)
             ; render dot-chain line in chain-line div.  (o)==(o)
@@ -336,8 +346,11 @@
             (.remove (.last ($ ".dots-game .chain-line .line"))))
           (inner ($ ".dots-game .chain-line") ""))
         ; render (o) within div dot-highlights
+        ; (append ($ ".dots-game .dot-highlights") "<b>hello</b>")
+        ; (log "html returns " hilit " " hilitstr)
         (append ($ ".dots-game .dot-highlights")
-                (html/html (dot-highlight-templ (last dot-chain) color)))
+                 ; "<div style=\"top:248px; left: 248px;\" class=\"dot-highlight blue\"></div>")
+                hilitstr)
       ))
     ))
 
