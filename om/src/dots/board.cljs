@@ -55,19 +55,54 @@
 (def number-colors (count dot-colors))
 
 
-(defn rand-colors [exclude-color]
-  ;(log "rand-colors " (prn-str exclude-color))
-  (let [colors (if exclude-color 
-                   (vec (remove (partial = exclude-color) dot-colors))
-                   dot-colors)
-        number-colors (if exclude-color (dec number-colors) number-colors)]
-    (map #(get colors (rand-int %)) (repeat number-colors))))
+; ------------------ dot pos destruct to x, y -----------------------------
+(defn pos->corner-coord [[xpos ypos]]
+  (mapv pos->coord [(reverse-board-position ypos) xpos]))
 
-(defn colorize-word [word]
-  (map (fn [x c] [:span {:class (name c)} x]) word (rand-colors)))
+(defn pos->center-coord [dot-pos]
+  (mapv #(+ (/ dot-size 2) %) (pos->corner-coord dot-pos)))
+
+(defn top-coord-from-dot-elem [$elem]
+  (- (int (last (re-matches #".*translate3d\(.*,(.*)px,.*\).*"
+                            (attr $elem "style"))))
+     offscreen-offset))
+
+(defn top-pos-from-dot-elem [$elem]
+  (if-let [[_ pos-str] (re-matches #".*level-(\d).*" (attr $elem "class"))]
+    (reverse-board-position (int pos-str))))
+
+(defn at-correct-postion? [dot [_ expected-top]]
+  (= expected-top (top-pos-from-dot-elem ($ (dot :elem)))))
+
+(defn items-with-positions [items]
+  (apply concat
+         (map-indexed #(map-indexed (fn [i item] (assoc item :pos [%1 i])) %2) items)))
+
+; state map fn :dot-index = ((partial dot-index board-offset) point)
+; map x,y co-ordinate into board matrix i,j, top,left = [0, 0]
+(defn dot-index 
+  [offset {:keys [x y]}]  ; offset is board offset
+  (let [[x y] (map - [x y] offset [12 12])]  ; (x-offset-12, y-offset-12)
+    (let [ypos (reverse-board-position (int (/ y grid-unit-size)))
+          xpos (int (/ x grid-unit-size))]
+      (if (and (> board-size ypos -1) (> board-size xpos -1))
+        [xpos ypos]))))
+
+;; ------------------ css style and transition ------------------------------
+(defn translate-top [top]
+  (str "translate3d(0," (+ offscreen-offset top) "px,0) "))
+
+; flash class effect on board-area
+(defn flash-class [color] (str (name color) "-trans"))
+
+(defn flash-color-on [color]
+  (.addClass ($ ".dots-game .board-area") (flash-class color)))
+
+(defn flash-color-off [color]
+  (.removeClass ($ ".dots-game .board-area") (flash-class color)))
+
 
 ; ----------- game screen and board -----------------
-
 ; set div's inner html to crate/html [:div.dots-game]
 (defn render-screen [screen]
   ; (let [view-dom (crate/html screen)]
@@ -92,21 +127,20 @@
   ;     (mapv add-dots-to-board (state :board))))
   state)
 
+; ----------- dot colors -----------------
+(defn rand-colors [exclude-color]
+  ;(log "rand-colors " (prn-str exclude-color))
+  (let [colors (if exclude-color 
+                   (vec (remove (partial = exclude-color) dot-colors))
+                   dot-colors)
+        number-colors (if exclude-color (dec number-colors) number-colors)]
+    (map #(get colors (rand-int %)) (repeat number-colors))))
 
-; fn inside state map :dot-index = ((partial dot-index board-offset) point)
-; map x,y co-ordinate into board matrix i,j
-(defn dot-index 
-  [offset {:keys [x y]}]  ; offset is board offset
-  (let [[x y] (map - [x y] offset [12 12])]  ; (x-offset-12, y-offset-12)
-    (let [ypos (reverse-board-position (int (/ y grid-unit-size)))
-          xpos (int (/ x grid-unit-size))]
-      (if (and (> board-size ypos -1) (> board-size xpos -1))
-        [xpos ypos]))))
+(defn colorize-word [word]
+  (map (fn [x c] [:span {:class (name c)} x]) word (rand-colors)))
 
 ; board is vector of vector.
 ; {:board [[{:color :blue :ele #<[objec]>}]]}
-; (defn dot-color [{:keys [board]} dot-pos]
-;   (-> board (get-in dot-pos) :color))  ; get-in for nested map, and vector
 ; YPos in board is calc-ed from reverse board position, when index into board, reverse back.
 (defn dot-color [board [xpos ypos]]
   (let [dot-pos [xpos (- (dec board-size) ypos)]
@@ -114,28 +148,14 @@
     (log "dot-color " dot-pos color)
     color))
 
-; ------------------ dot pos destruct to x, y -----------------------------
-(defn pos->corner-coord [[xpos ypos]]
-  (mapv pos->coord [(reverse-board-position ypos) xpos]))
 
-(defn pos->center-coord [dot-pos]
-  (mapv #(+ (/ dot-size 2) %) (pos->corner-coord dot-pos)))
+(defn get-all-color-dots 
+  [board color]
+  (filter #(= color (:color %)) (items-with-positions board)))
 
-(defn top-coord-from-dot-elem [$elem]
-  (- (int (last (re-matches #".*translate3d\(.*,(.*)px,.*\).*"
-                            (attr $elem "style"))))
-     offscreen-offset))
-
-(defn top-pos-from-dot-elem [$elem]
-  (if-let [[_ pos-str] (re-matches #".*level-(\d).*" (attr $elem "class"))]
-    (reverse-board-position (int pos-str))))
-
-(defn at-correct-postion? [dot [_ expected-top]]
-  (= expected-top (top-pos-from-dot-elem ($ (dot :elem)))))
-
-;; ------------------ css style and transition ------------------------------
-(defn translate-top [top]
-  (str "translate3d(0," (+ offscreen-offset top) "px,0) "))
+(defn dot-positions-for-focused-color [board dot-chain]
+  (let [color (dot-color board (first dot-chain))]
+      (vec (map :pos (get-all-color-dots state color)))))
 
 
 ; ------------------ create dots and board ------------------------------
@@ -194,7 +214,7 @@
                         (repeat offscreen-dot-position)
                         (take missing (rand-colors exclude-color)))
           ; new dots at the top of the col.
-          ; XXX nwe col must be vector.
+          ; XXX! nwe col must be vector.
           new-col (vec (concat new-dots col))
           new-col (vec (map-indexed #(create-dot col-idx %1 (:color %2)) new-col))
          ]
@@ -203,21 +223,12 @@
       new-col
     )))
 
-; given a state map, repopulate missing dots in board and reset excl color.
-; (defn add-missing-dots
-;   [{:keys [board exclude-color] :as state}]
-;   (assoc state :board
-;          (vec (map-indexed
-;                 #(add-missing-dots-helper %1 %2 exclude-color)
-;                 board))
-;          :exclude-color nil))
 
 ; given a board and exclude color, ret a board with added dots
 (defn add-missing-dots [board exclude-color]
   (vec (map-indexed
           #(add-missing-dots-helper %1 %2 exclude-color) ; col-index and a col of dots
           board)))
-
 
 ;; ------------------------------------------------
 ; dot-chain call this fn to remove dots in dot-chain. ret updated board.
@@ -262,7 +273,6 @@
     (log "remove-dot by id " dot-id " color " color)
     (.remove ($ elem))))
 
-
 ; update dot by adding css class. 
 (defn update-dot [dot pos]
   (if dot
@@ -292,23 +302,34 @@
       board)))
 
 
-; double line in background in style when dots chained
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+; css animation for dot highlight and dot-chain lines.
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+; render dot-chain line in chain-line div.  (o)==(o), 
+;   <div style="width: 23px;height: 4px;top: 166px;left: 45px;" class="line red horiz"></div>
+; line origin [top, left], width=lenght, translate3d000 kicks in GPU.
 (defn chain-element-templ
   [last-pos pos color]
-  (log "chain-element-templ " last-pos pos color)
   (let [[top1 left1] (pos->center-coord last-pos)
         [top2 left2] (pos->center-coord pos)
         length (- grid-unit-size dot-size)
         vertical (= left1 left2)
+        ; css draw line, from top left, width is length
         [width height] (if vertical [4 length] [length 4])
-        [off-left off-top] (if vertical [-3 11] [11 -3])        
-        style (str "width: " width "px;"
-                   "height: " height "px;" 
-                   "top: " (+ (min top1 top2) off-top) "px;"
-                   "left: " (+ (min left1 left2) off-left) "px;")]
-    [:div {:style style :class (str "line " (name (or color :blue)) (if (< width height) " vert" " horiz" ))}]))
+        [off-left off-top] (if vertical [-3 11] [11 -3])
+             
+        style {:width (str width "px;") :height (str height "px;")
+               :top (str (+ (min top1 top2) off-top) "px;")
+               :left (str (+ (min left1 left2) off-left) "px;")}
+        klz (str "line " (name (or color :blue)) (if (< width height) " vert" " horiz" ))
+        ]
+    (log "chain-element-templ " last-pos pos color " klz " klz)
+    [:div {:style style :class klz}]
+    ))
 
-; add dot-highlight style
+; render clicked dots inside div dot-highlights, (o) css animation keyframes
+;   <div style="top:158px; left: 158px;" class="dot-highlight green"></div>
+; dot highlight template is a div css animation keyframes expander 2 steps for .7sec
 (defn dot-highlight-templ 
   [pos color]
   (let [[top left] (pos->corner-coord pos)
@@ -318,10 +339,8 @@
     (log "highlight templ top " top " left " left)
     [:div {:style style :class (str "dot-highlight " (name color))}]))
 
-; render clicked dots inside div dot-highlights, (o)
-;   <div style="top:158px; left: 158px;" class="dot-highlight green"></div>
-; render dot-chain line in chain-line div.  (o)==(o)
-;   <div style="width: 23px;height: 4px;top: 166px;left: 45px;" class="line red horiz"></div>
+
+; get dot to remove go-loop dot-chain channel to get dots in dot-chain to remove.
 (defn render-dot-chain-update 
   [board last-dot-chain dot-chain]
   (let [last-chain-length (count last-dot-chain)
@@ -331,6 +350,8 @@
             length-diff (- chain-length last-chain-length)
             hilit (html/html (dot-highlight-templ (last dot-chain) color))
             hilitstr (html/render hilit)
+            chain (html/html (chain-element-templ (last (butlast dot-chain)) (last dot-chain) color))
+            chainstr (html/render chain)
             ]
         (log "render-dot-chain-update chain-length " chain-length " diff " length-diff 
              "first " (first dot-chain) " last " (last dot-chain) " color " color
@@ -338,23 +359,19 @@
         (if (< 1 chain-length)
           (if (pos? length-diff)
             ; render dot-chain line in chain-line div.  (o)==(o)
-            (append ($ ".dots-game .chain-line")
-                    (html/html (chain-element-templ
-                                 (last (butlast dot-chain))
-                                 (last dot-chain)
-                                 color)))
-            (.remove (.last ($ ".dots-game .chain-line .line"))))
+            (append ($ ".dots-game .chain-line") chainstr)
+            (.remove (.last ($ ".dots-game .chain-line .line")))) ; remove 
           (inner ($ ".dots-game .chain-line") ""))
         ; render (o) within div dot-highlights
         ; (append ($ ".dots-game .dot-highlights") "<b>hello</b>")
         ; (log "html returns " hilit " " hilitstr)
-        (append ($ ".dots-game .dot-highlights")
+        (append ($ ".dots-game .dot-highlights") hilitstr)
                  ; "<div style=\"top:248px; left: 248px;\" class=\"dot-highlight blue\"></div>")
-                hilitstr)
       ))
     ))
 
 
+; whether cur-dot is follow prev-dot based on color, to populate dot-chain.
 (defn dot-follows? [board prev-dot cur-dot]
   (and (not= prev-dot cur-dot)
        (or (nil? prev-dot)
@@ -362,6 +379,7 @@
             (= (dot-color board prev-dot) (dot-color board cur-dot))
             (= 1 (apply + (mapv (comp abs -) cur-dot prev-dot)))))))
 
+; new dot added to dot-chain at dot-pos, insert into dot-chain.
 (defn transition-dot-chain-state 
   [board dot-chain dot-pos]
   (let [follows (dot-follows? board (last dot-chain) dot-pos)
@@ -374,29 +392,5 @@
         (conj (or dot-chain []) dot-pos))
       dot-chain)))
 
-(defn items-with-positions [items]
-  (apply concat
-         (map-indexed #(map-indexed (fn [i item] (assoc item :pos [%1 i])) %2) items)))
-
-(defn get-all-color-dots 
-  [board color]
-  (filter #(= color (:color %)) (items-with-positions board)))
-
-; (defn dot-positions-for-focused-color [state]
-;   (let [color (dot-color state (-> state :dot-chain first))]
-;       (vec (map :pos (get-all-color-dots state color)))))
-(defn dot-positions-for-focused-color [board dot-chain]
-  (let [color (dot-color board (first dot-chain))]
-      (vec (map :pos (get-all-color-dots state color)))))
-
-
-; flash class effect on board-area
-(defn flash-class [color] (str (name color) "-trans"))
-
-(defn flash-color-on [color]
-  (.addClass ($ ".dots-game .board-area") (flash-class color)))
-
-(defn flash-color-off [color]
-  (.removeClass ($ ".dots-game .board-area") (flash-class color)))
 
 

@@ -45,6 +45,23 @@
 ;
 ; ----------------------------------------------------------------------------
 
+; for transient animiation, you can om.core/set-state! w/o re-render
+;   (defn component [cursor owner opts]
+;     (reify
+;       om/IInitState
+;       (init-state [_]
+;         {:matters true
+;          :ignore-me "changing me doesn't affect rerender"})
+;       om/IShouldUpdate
+;       (should-update [this next-props next-state]
+;         (let [prev-state (om/get-render-state owner)
+;               ignore-keys [:ignore-me]]
+;           (not (apply = (map #(apply dissoc % ignore-keys) [prev-state next-state])))))
+;       om/IRenderState
+;       (render-state [this state]
+;         ; render something
+;         )))
+
 
 (def ESCAPE_KEY 27)
 (def ENTER_KEY 13)
@@ -175,7 +192,7 @@
   [board dot-chain draw-chan board-offset]
   (go-loop [last-dot-chain nil
             dot-chain dot-chain]
-    ; render clicked dots in dot-chain with 
+    ; render dot chain animation.
     (render-dot-chain-update board last-dot-chain dot-chain)
     (if (dot-chain-cycle? dot-chain)
       (let [color (dot-color board (first dot-chain))] ; color of first dot in dot-chain

@@ -152,7 +152,7 @@
 (defn create-dot [xpos ypos color]
   {:color color :elem (crate/html (starting-dot [xpos ypos] color))})
 
-; remove a dot by ($ele).remove, with some css animation.
+; remove a dot by ($ele).remove, with css animation.
 (defn remove-dot 
   [{:keys [elem] :as dot}]
   (go
