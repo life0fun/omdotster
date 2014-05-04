@@ -88,8 +88,8 @@ To prevent munging, You can either create an externs file manually, or if you're
 
     {
       :optimizations :advanced
-     :externs ["lib/raphael-min.js"]
-     :output-to "helloworld.js"
+      :externs ["lib/raphael-min.js"]
+      :output-to "helloworld.js"
     }
 
 To find externs files for popular js libs, go to closure-compiler repository. For example, you can download jquery externs from there.
@@ -118,14 +118,18 @@ Important Note here is that, during cljsbuild, it will put all intermediate resu
     :output-dir "target/my-compiler-output-"
 
 
-run `lein cljsbuild once todo` to build todo and view with index.html.
-run `lein cljsbuild once dots` to build dots and view with dots.html.
+run `lein cljsbuild once todo` to build todo and view with index.html with `open index.html`.
+
+run `lein cljsbuild once dots` to build dots and view with dots.html with `open dots.html`.
+
+run `cd dotsters; lein cljsbuild once` to build dots with only core.async and `open resources/public/dots.html`.
+
 
 The order of variables in cljs matters. Need to use declare before use. Lesson learned from swap! on undefined app-state.
 
 Note that when you make change to function signature, some other js file that refers to the function might not necessarily being re-build. Need to remove intermediate files under target directory.
 
-  $ rm -fr target/cljsbuild-compiler-2
+  $ rm -fr target/cljsbuild-compiler-2/
 
 ## License
 

@@ -14,6 +14,16 @@ The dotsters directory contains bug fixes and major code refactors that helps be
 The om directory contains the re-implements using `om`. `om` is the final frontier of front-end, as it builds on top of `react.js` and using core.async for inter-component communication. With react.js, we build UI fragement using functions. With core.async, communication is based on data and work can be split and distributed across webworkers.
 
 
+## Usage
+
+To build om dotsters,
+
+  cd om
+  lein cljsbuild once dots
+
+Then `open dots.html` to view the dots page.
+
+
 ## License
 
 Copyright © 2014
